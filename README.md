@@ -1,5 +1,7 @@
 # Collaborator
 
+> **Note:** This repo is for releases only — it hosts downloadable builds and the install script. The source code is not publicly available (yet). For bug reports and feature requests, please use the [Issues](https://github.com/collaborator-ai/collab-public/issues) tab.
+
 Collaborator is a place to build with agents.
 
 ![Collaborator](screenshot.png)
@@ -9,6 +11,23 @@ Agents are incredible, and multiagent workflows are becoming a reality. But toda
 Collaborator is an end-to-end environment for agentic development. Terminals, context files, and running code — all arranged on an infinite canvas in one place. No context switching, no tab hunting. Just your agents and your work, side by side.
 
 The app is early-stage and in active development. macOS only for now.
+
+## Stack
+
+Collaborator is a native desktop app built with:
+
+- **Electron 40** — desktop shell with multi-window architecture
+- **React 19** — UI framework
+- **Tailwind CSS 4** — styling
+- **electron-vite** — build tooling with hot reload
+- **xterm.js** — terminal emulation, backed by tmux sessions for persistence
+- **Monaco Editor** — code editing with syntax highlighting
+- **BlockNote / TipTap** — rich text markdown editing
+- **D3** — canvas rendering (infinite pan-and-zoom surface)
+- **sharp** — image processing
+- **KaTeX** — math rendering in markdown
+
+All data is stored locally on disk.
 
 ## Install
 
