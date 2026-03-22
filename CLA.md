@@ -1,6 +1,3 @@
----
-type: "note"
----
 # Softspace Inc. Individual Contributor License Agreement ("Agreement") v2.0
 
 *Based on the Apache Individual Contributor License Agreement v2.2*
