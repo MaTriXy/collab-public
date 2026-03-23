@@ -9,11 +9,9 @@ import {
   mkdirSync,
   readFileSync,
   realpathSync,
-  writeFileSync,
   existsSync,
 } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
-import { homedir } from "node:os";
 import { basename, extname, join } from "node:path";
 import fm from "front-matter";
 import { saveConfig, type AppConfig } from "./config";
@@ -58,115 +56,6 @@ export function getWorkspaceConfig(
   return getWsConfig(path);
 }
 
-const CLAUDE_MD_TEMPLATE = `# Collaborator Workspace
-
-This is a Collaborator workspace. Files in the root are sources (notes, articles, transcripts).
-Files in \`.collaborator/\` are managed by the Collaborator agent.
-
-## File types
-- Sources (root): note, article, transcript, pdf
-- Inferences (.collaborator/inferences/): concept, insight, objective
-
-## Front-matter
-All .md files should have YAML front-matter with at least a \`type\` field.
-Files without \`collab_reviewed: true\` are inbox items awaiting processing.
-
-## Persona
-- \`.collaborator/persona/identity.md\` — who this collaborator is
-- \`.collaborator/persona/values.md\` — beliefs, priorities, decision style
-`;
-
-const AGENT_NOTIFY_SCRIPT = `#!/bin/bash
-set -euo pipefail
-LOG="$HOME/.collaborator/hook-debug.log"
-INPUT=$(cat)
-echo "[$(date -Iseconds)] hook fired" >> "$LOG"
-echo "  raw input: $INPUT" >> "$LOG"
-EVENT=$(echo "$INPUT" | jq -r '.hook_event_name')
-
-# Discover the socket path from the breadcrumb file written by the
-# JSON-RPC server. This works for both dev (~/.collaborator/dev/)
-# and prod (~/.collaborator/) instances.
-SOCKET_PATH_FILE="$HOME/.collaborator/socket-path"
-if [ -f "$SOCKET_PATH_FILE" ]; then
-  SOCKET=$(cat "$SOCKET_PATH_FILE")
-else
-  SOCKET="$HOME/.collaborator/ipc.sock"
-fi
-
-if [ ! -S "$SOCKET" ]; then
-  echo "  socket not found at $SOCKET" >> "$LOG"
-  exit 0
-fi
-
-case "$EVENT" in
-  SessionStart)
-    METHOD="agent.sessionStart"
-    PAYLOAD=$(echo "$INPUT" | jq -c --arg pty "$COLLAB_PTY_SESSION_ID" '{session_id: .session_id, cwd: .cwd, pty_session_id: $pty}')
-    ;;
-  PostToolUse)
-    METHOD="agent.fileTouched"
-    PAYLOAD=$(echo "$INPUT" | jq -c '{session_id: .session_id, tool_name: .tool_name, file_path: (.tool_input.file_path // .tool_input.path // null)}')
-    ;;
-  SessionEnd)
-    METHOD="agent.sessionEnd"
-    PAYLOAD=$(echo "$INPUT" | jq -c '{session_id: .session_id}')
-    ;;
-  *)
-    echo "  unknown event: $EVENT" >> "$LOG"
-    exit 0
-    ;;
-esac
-
-echo "  method=$METHOD payload=$PAYLOAD" >> "$LOG"
-RESULT=$(printf '{"jsonrpc":"2.0","id":1,"method":"%s","params":%s}\\n' "$METHOD" "$PAYLOAD" \\
-  | nc -U -w1 "$SOCKET" 2>&1) || true
-echo "  rpc result: $RESULT" >> "$LOG"
-
-exit 0
-`;
-
-function buildHooksConfig(): Record<string, unknown> {
-  const agentScript =
-    '"$CLAUDE_PROJECT_DIR"/.claude/hooks/agent-notify.sh';
-  return {
-    SessionStart: [
-      {
-        hooks: [
-          {
-            type: "command",
-            command: agentScript,
-            timeout: 5,
-          },
-        ],
-      },
-    ],
-    PostToolUse: [
-      {
-        matcher: "Read|Write|Edit",
-        hooks: [
-          {
-            type: "command",
-            command: agentScript,
-            timeout: 5,
-          },
-        ],
-      },
-    ],
-    SessionEnd: [
-      {
-        hooks: [
-          {
-            type: "command",
-            command: agentScript,
-            timeout: 5,
-          },
-        ],
-      },
-    ],
-  };
-}
-
 function ensureGitignoreEntry(workspacePath: string): void {
   const gitignorePath = join(workspacePath, ".gitignore");
   if (!existsSync(gitignorePath)) return;
@@ -186,101 +75,10 @@ function ensureGitignoreEntry(workspacePath: string): void {
   );
 }
 
-const RPC_BLOCK_START = "<!-- collaborator:rpc-start -->";
-const RPC_BLOCK_END = "<!-- collaborator:rpc-end -->";
-
-function buildRpcBlock(): string {
-  const socketPathFile = join(homedir(), ".collaborator", "socket-path");
-  return [
-    RPC_BLOCK_START,
-    "",
-    "## Collaborator RPC",
-    "",
-    "The Collaborator desktop app exposes a JSON-RPC 2.0 server over a Unix domain socket.",
-    `Read the socket path from \`${socketPathFile}\`, then send newline-delimited JSON.`,
-    "",
-    "Call `rpc.discover` to list available methods:",
-    "```bash",
-    `SOCK=$(cat "${socketPathFile}")`,
-    `echo '{"jsonrpc":"2.0","id":1,"method":"rpc.discover"}' | nc -U "$SOCK"`,
-    "```",
-    "",
-    RPC_BLOCK_END,
-  ].join("\n");
-}
-
-function ensureRpcBlock(claudeMdPath: string): void {
-  let content = existsSync(claudeMdPath)
-    ? readFileSync(claudeMdPath, "utf-8")
-    : "";
-
-  const startIdx = content.indexOf(RPC_BLOCK_START);
-  const endIdx = content.indexOf(RPC_BLOCK_END);
-  const block = buildRpcBlock();
-
-  if (startIdx !== -1 && endIdx !== -1) {
-    content =
-      content.slice(0, startIdx) +
-      block +
-      content.slice(endIdx + RPC_BLOCK_END.length);
-  } else {
-    content = content.trimEnd() + "\n\n" + block + "\n";
-  }
-
-  writeFileSync(claudeMdPath, content, "utf-8");
-}
-
 function initWorkspaceFiles(workspacePath: string): void {
   const collabDir = join(workspacePath, ".collaborator");
-  const claudeDir = join(workspacePath, ".claude");
-
   mkdirSync(collabDir, { recursive: true });
-  mkdirSync(claudeDir, { recursive: true });
-
-  const claudeMd = join(claudeDir, "CLAUDE.md");
-  if (!existsSync(claudeMd)) {
-    writeFileSync(claudeMd, CLAUDE_MD_TEMPLATE, "utf-8");
-  }
-  ensureRpcBlock(claudeMd);
-
   ensureGitignoreEntry(workspacePath);
-}
-
-function readJsonFileSync(
-  filePath: string,
-): Record<string, unknown> {
-  try {
-    const raw = readFileSync(filePath, "utf-8");
-    return JSON.parse(raw) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
-}
-
-function installPluginSync(workspacePath: string): void {
-  const claudeDir = join(workspacePath, ".claude");
-  const hooksDir = join(claudeDir, "hooks");
-  mkdirSync(claudeDir, { recursive: true });
-  mkdirSync(hooksDir, { recursive: true });
-
-  const settingsPath = join(claudeDir, "settings.json");
-  const settings = readJsonFileSync(settingsPath);
-  const existingHooks =
-    settings.hooks && typeof settings.hooks === "object"
-      ? (settings.hooks as Record<string, unknown>)
-      : {};
-  settings.hooks = { ...existingHooks, ...buildHooksConfig() };
-  writeFileSync(
-    settingsPath,
-    JSON.stringify(settings, null, 2),
-    "utf-8",
-  );
-
-  writeFileSync(
-    join(hooksDir, "agent-notify.sh"),
-    AGENT_NOTIFY_SCRIPT,
-    { mode: 0o755 },
-  );
 }
 
 /**
@@ -301,12 +99,6 @@ export function startWorkspaceServices(
   );
   void wikilinkIndex.buildIndex(path);
   agentActivity.setWorkspacePath(path);
-
-  try {
-    installPluginSync(path);
-  } catch (err) {
-    console.error("[workspace] Failed to install plugin hooks:", err);
-  }
 }
 
 /**
