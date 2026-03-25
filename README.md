@@ -35,6 +35,41 @@ Collaborator is a native desktop app built with:
 
 All data is stored locally on disk.
 
+## Development
+
+### Prerequisites
+
+- **Node.js** (v22+)
+- **Bun** — used for package management and running tests
+- **tmux** — required for terminal sessions (`brew install tmux`)
+
+### Setup
+
+```sh
+cd collab-electron
+bun install
+```
+
+### Run in dev mode
+
+```sh
+bun run dev
+```
+
+This starts the Electron app with hot reload via electron-vite.
+
+### Run tests
+
+```sh
+bun test
+```
+
+### Build
+
+```sh
+bun run build
+```
+
 ## Quickstart
 
 1. Open Collaborator
