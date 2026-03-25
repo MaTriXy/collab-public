@@ -557,12 +557,11 @@ async function init() {
 				for (const id of ids) selectTile(id);
 			}
 			tileManager.syncSelectionVisuals();
-			if (ids.size === 0) {
-				tileManager.blurCanvasTileGuest();
-				tileManager.clearTileFocusRing();
-				tileManager.setFocusedTileId(null);
-				noteSurfaceFocus("canvas");
-			}
+			tileManager.blurCanvasTileGuest();
+			tileManager.clearTileFocusRing();
+			tileManager.setFocusedTileId(null);
+			canvasEl.focus();
+			noteSurfaceFocus("canvas");
 		},
 		isShiftHeld: () => shiftHeld,
 		isSpaceHeld: () => spaceHeld,
