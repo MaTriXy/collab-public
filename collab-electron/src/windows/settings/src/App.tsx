@@ -305,13 +305,13 @@ type TerminalMode = "tmux" | "sidecar";
 const TERMINAL_MODES: { value: TerminalMode; label: string; description: string }[] = [
   {
     value: "tmux",
-    label: "Tmux",
-    description: "Uses tmux for session persistence. May cause scrollback artifacts.",
+    label: "tmux",
+    description: "May cause scrollback artifacts. Claude Code agent teams run in individual tmux panes.",
   },
   {
     value: "sidecar",
-    label: "Node PTY",
-    description: "Uses a persistent Node.js sidecar process. Clean scrollback rendering.",
+    label: "node-pty",
+    description: "Clean scrollback rendering.",
   },
 ];
 
@@ -336,12 +336,12 @@ function TerminalPane() {
       <div className="space-y-1">
         <h2 className="text-base font-semibold">Terminal</h2>
         <p className="text-sm text-muted-foreground">
-          Configure terminal behavior. Changes take effect for new terminals.
+          Changes take effect for new terminals.
         </p>
       </div>
 
       <div className="space-y-2">
-        <p className="text-sm font-medium">Persistence mode</p>
+        <p className="text-sm font-medium">Terminal backend</p>
         <div className="space-y-1.5">
           {TERMINAL_MODES.map(({ value, label, description }) => (
             <button
