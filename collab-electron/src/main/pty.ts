@@ -153,7 +153,10 @@ async function spawnSidecar(): Promise<void> {
 
   const token = crypto.randomBytes(16).toString("hex");
 
-  const { app } = require("electron");
+  let app: typeof import("electron").app | undefined;
+  try { app = require("electron").app; } catch {}
+  if (!app) throw new Error("Cannot spawn sidecar outside Electron");
+
   const sidecarPath = app.isPackaged
     ? path.join(process.resourcesPath, "pty-sidecar.js")
     : path.join(__dirname, "pty-sidecar.js");
@@ -352,36 +355,41 @@ export async function reconnectSession(
   scrollback: string;
   mode: "tmux" | "sidecar";
 }> {
-  const mode = terminalMode();
+  // Try sidecar first if it's running — the session may have been
+  // created under sidecar mode even if the current default differs.
+  // Fall through to tmux if the session isn't in the sidecar.
+  if (sidecarClient || terminalMode() === "sidecar") {
+    try {
+      await ensureSidecar();
+      const client = getSidecarClient();
+      const { socketPath } = await client.reconnectSession(
+        sessionId, cols, rows,
+      );
 
-  if (mode === "sidecar") {
-    await ensureSidecar();
-    const client = getSidecarClient();
-    const { socketPath } = await client.reconnectSession(
-      sessionId, cols, rows,
-    );
+      const dataSock = await client.attachDataSocket(
+        socketPath,
+        (data) => {
+          sendToSender(senderWebContentsId, "pty:data", {
+            sessionId,
+            data,
+          });
+          scheduleForegroundCheck(sessionId);
+        },
+      );
 
-    const dataSock = await client.attachDataSocket(
-      socketPath,
-      (data) => {
-        sendToSender(senderWebContentsId, "pty:data", {
-          sessionId,
-          data,
-        });
-        scheduleForegroundCheck(sessionId);
-      },
-    );
+      dataSockets.get(sessionId)?.destroy();
+      dataSockets.set(sessionId, dataSock);
 
-    dataSockets.get(sessionId)?.destroy();
-    dataSockets.set(sessionId, dataSock);
+      const meta = readSessionMeta(sessionId);
+      const shell = meta?.shell || process.env.SHELL || "/bin/zsh";
+      sidecarSessionIds.add(sessionId);
 
-    const meta = readSessionMeta(sessionId);
-    const shell = meta?.shell || process.env.SHELL || "/bin/zsh";
-    sidecarSessionIds.add(sessionId);
-
-    return {
-      sessionId, shell, meta, scrollback: "", mode: "sidecar",
-    };
+      return {
+        sessionId, shell, meta, scrollback: "", mode: "sidecar",
+      };
+    } catch {
+      // Session not in sidecar — fall through to tmux
+    }
   }
 
   const name = tmuxSessionName(sessionId);

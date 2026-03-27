@@ -1,6 +1,7 @@
-import { describe, test, expect, afterEach } from "bun:test";
+import { describe, test, expect, afterEach, beforeAll } from "bun:test";
 import * as fs from "node:fs";
 import { spawn, type ChildProcess } from "node:child_process";
+import { loadConfig, setPref } from "./config";
 import {
   getTmuxBin,
   getTmuxConf,
@@ -21,6 +22,13 @@ import {
   cleanDetachedSessions,
   verifyTmuxAvailable,
 } from "./pty";
+
+// Force tmux mode for these tests — the default is now "sidecar"
+// which requires Electron to spawn the sidecar process.
+beforeAll(() => {
+  const config = loadConfig();
+  setPref(config, "terminalMode", "tmux");
+});
 
 describe("tmux helpers", () => {
   const testId = "test-" + Date.now().toString(16);
