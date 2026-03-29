@@ -12,6 +12,8 @@
 		"dev": "electron-vite dev",
 		"build": "electron-vite build",
 		"preview": "electron-vite preview",
+		"clean": "bun ./scripts/clean.mjs",
+		"clean:deep": "bun ./scripts/clean.mjs --deep",
 		"package": "bun ./scripts/package.mjs",
 		"package:unsigned": "bun ./scripts/package.mjs --no-sign",
 		"release": "bun ./scripts/package.mjs --publish",
@@ -96,6 +98,7 @@
 			"allowToChangeInstallationDirectory": true
 		},
 		"linux": {
+			"category": "Development",
 			"target": [
 				{
 					"target": "AppImage",

@@ -47,8 +47,7 @@ scripts/
 !scripts/*.cjs
 !scripts/*.sh
 !scripts/*.cmd
+!scripts/*.ps1
 docs/
 dev-app-update.yml
 build-debug.log
-
-scripts/
