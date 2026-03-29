@@ -40,14 +40,6 @@ electron/out/
 # Back up these files separately when migrating machines
 .claude/
 CLAUDE.md
-build/
-scripts/
-!scripts/
-!scripts/*.mjs
-!scripts/*.cjs
-!scripts/*.sh
-!scripts/*.cmd
-!scripts/*.ps1
 docs/
 dev-app-update.yml
 build-debug.log
