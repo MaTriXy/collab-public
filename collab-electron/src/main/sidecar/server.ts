@@ -244,6 +244,7 @@ export class SidecarServer {
       rows: params.rows,
       cwd: params.cwd,
       env,
+      encoding: null,
     });
 
     const ringBuffer = new RingBuffer(this.opts.ringBufferBytes);
@@ -267,17 +268,16 @@ export class SidecarServer {
     }) as Session;
 
     // Listen for PTY output
-    ptyProcess.onData((data: string) => {
-      const buf = Buffer.from(data, "utf-8");
-      ringBuffer.write(buf);
+    ptyProcess.onData((data: Buffer) => {
+      ringBuffer.write(data);
 
       if (session.reconnectQueue) {
-        session.reconnectQueue.push(buf);
+        session.reconnectQueue.push(data);
         return;
       }
 
       if (session.dataClient && !session.dataClient.destroyed) {
-        session.dataClient.write(buf);
+        session.dataClient.write(data);
       }
     });
 

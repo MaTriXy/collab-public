@@ -166,34 +166,34 @@ function TerminalTab({ sessionId, visible, restored, scrollbackData, mode }: Ter
 			window.api.ptyWrite(sessionId, data);
 		});
 
-		let dataBuffer: string[] = [];
+		let dataBuffer: Uint8Array[] = [];
 		let flushTimer: number | undefined;
 		let firstData = true;
 
 		const flushData = () => {
-			const chunk = dataBuffer.join("");
-			dataBuffer.length = 0;
+			if (dataBuffer.length === 0) {
+				flushTimer = undefined;
+				return;
+			}
+			const chunks = dataBuffer;
+			dataBuffer = [];
 			flushTimer = undefined;
-			if (!chunk) return;
 			if (firstData) {
 				firstData = false;
 				if (restored && mode !== "sidecar") {
-					// Clear viewport so tmux's initial screen
-					// draw has a clean surface. Scrollback from
-					// capture-pane stays in xterm's buffer.
 					term.write("\x1b[2J\x1b[H");
 				} else if (!restored) {
 					term.reset();
 				}
-				// In sidecar mode, scrollback arrives as first
-				// data socket bytes — no clear needed.
 			}
-			term.write(chunk);
+			for (const chunk of chunks) {
+				term.write(chunk);
+			}
 		};
 
 		const handleData = (payload: {
 			sessionId: string;
-			data: string;
+			data: Uint8Array;
 		}) => {
 			if (payload.sessionId !== sessionId) return;
 			dataBuffer.push(payload.data);

@@ -101,7 +101,7 @@ describe("SidecarClient", () => {
     });
     assert.match(sessionId, /^[0-9a-f]{16}$/);
 
-    const chunks: string[] = [];
+    const chunks: Buffer[] = [];
     const dataSock = await client.attachDataSocket(
       socketPath,
       (data) => chunks.push(data),
@@ -112,13 +112,13 @@ describe("SidecarClient", () => {
     // Wait until we see the expected output or timeout
     const deadline = Date.now() + 5000;
     while (
-      !chunks.join("").includes("client-test")
+      !Buffer.concat(chunks).toString().includes("client-test")
       && Date.now() < deadline
     ) {
       await sleep(50);
     }
 
-    assert.ok(chunks.join("").includes("client-test"));
+    assert.ok(Buffer.concat(chunks).toString().includes("client-test"));
     dataSock.destroy();
   });
 
@@ -288,7 +288,7 @@ describe("SidecarClient", () => {
     });
 
     // Attach and write a marker
-    const chunks1: string[] = [];
+    const chunks1: Buffer[] = [];
     const dataSock1 = await client.attachDataSocket(
       socketPath,
       (data) => chunks1.push(data),
@@ -297,12 +297,12 @@ describe("SidecarClient", () => {
 
     const deadline1 = Date.now() + 5000;
     while (
-      !chunks1.join("").includes("RECONNECT_MARKER")
+      !Buffer.concat(chunks1).toString().includes("RECONNECT_MARKER")
       && Date.now() < deadline1
     ) {
       await sleep(50);
     }
-    assert.ok(chunks1.join("").includes("RECONNECT_MARKER"));
+    assert.ok(Buffer.concat(chunks1).toString().includes("RECONNECT_MARKER"));
 
     // Disconnect the data socket
     dataSock1.destroy();
@@ -315,7 +315,7 @@ describe("SidecarClient", () => {
     assert.equal(reconnResult.sessionId, sessionId);
 
     // Attach a new data socket — it should receive the scrollback
-    const chunks2: string[] = [];
+    const chunks2: Buffer[] = [];
     const dataSock2 = await client.attachDataSocket(
       reconnResult.socketPath,
       (data) => chunks2.push(data),
@@ -323,14 +323,14 @@ describe("SidecarClient", () => {
 
     const deadline2 = Date.now() + 5000;
     while (
-      !chunks2.join("").includes("RECONNECT_MARKER")
+      !Buffer.concat(chunks2).toString().includes("RECONNECT_MARKER")
       && Date.now() < deadline2
     ) {
       await sleep(50);
     }
 
     assert.ok(
-      chunks2.join("").includes("RECONNECT_MARKER"),
+      Buffer.concat(chunks2).toString().includes("RECONNECT_MARKER"),
       "Scrollback should contain the marker from before disconnect",
     );
     dataSock2.destroy();

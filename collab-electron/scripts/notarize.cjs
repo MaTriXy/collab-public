@@ -1,3 +1,5 @@
+const { notarize } = require("@electron/notarize");
+const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -15,9 +17,18 @@ function loadEnvLocal() {
   }
 }
 
-module.exports = async function notarizeIfNeeded(context) {
-  if (process.platform !== "darwin") return;
-  if (process.env.SKIP_NOTARIZE === "true") return;
+async function notarizeApp(context) {
+  const { electronPlatformName, appOutDir, packager } = context;
+
+  if (process.env.SKIP_NOTARIZE === "true") {
+    console.log("Skipping notarization (SKIP_NOTARIZE is set)");
+    return;
+  }
+
+  if (electronPlatformName !== "darwin") {
+    console.log("Skipping notarization (not macOS)");
+    return;
+  }
 
   loadEnvLocal();
 
@@ -29,22 +40,69 @@ module.exports = async function notarizeIfNeeded(context) {
   const appleTeamId = process.env.APPLE_TEAM_ID;
 
   if (!keychainProfile && !(appleId && appleIdPassword && appleTeamId)) {
+    console.log("Skipping notarization (credentials not configured)");
     return;
   }
 
-  const { notarize } = require("@electron/notarize");
-  const { appOutDir, packager } = context;
   const appName = packager.appInfo.productFilename;
+  const appPath = path.join(appOutDir, `${appName}.app`);
 
-  await notarize({
+  if (!fs.existsSync(appPath)) {
+    throw new Error(`App bundle not found: ${appPath}`);
+  }
+
+  console.log(`Notarizing ${appPath}`);
+
+  const options = {
     appBundleId: packager.appInfo.id,
-    appPath: path.join(appOutDir, `${appName}.app`),
-    ...(keychainProfile
-      ? { keychainProfile }
-      : {
-          appleId,
-          appleIdPassword,
-          teamId: appleTeamId,
-        }),
-  });
-};
+    appPath,
+    tool: "notarytool",
+  };
+
+  if (keychainProfile) {
+    console.log(`  Using keychain profile: ${keychainProfile}`);
+    options.keychainProfile = keychainProfile;
+  } else {
+    console.log(`  Using Apple ID: ${appleId}`);
+    options.appleId = appleId;
+    options.appleIdPassword = appleIdPassword;
+    options.teamId = appleTeamId;
+  }
+
+  const start = Date.now();
+  await notarize(options);
+  const seconds = ((Date.now() - start) / 1000).toFixed(1);
+  console.log(`Notarization completed in ${seconds}s`);
+
+  // Staple the ticket (retry up to 3 times)
+  console.log("Stapling notarization ticket...");
+  const maxAttempts = 3;
+  const retryDelay = 30_000;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const result = spawnSync("xcrun", ["stapler", "staple", appPath], {
+      stdio: "pipe",
+      encoding: "utf8",
+    });
+
+    if (result.status === 0) {
+      console.log("Ticket stapled");
+      return;
+    }
+
+    if (attempt < maxAttempts) {
+      console.log(
+        `Staple attempt ${attempt}/${maxAttempts} failed, ` +
+          `retrying in ${retryDelay / 1000}s...`,
+      );
+      await new Promise((r) => setTimeout(r, retryDelay));
+    } else {
+      console.warn(
+        `Could not staple after ${maxAttempts} attempts ` +
+          "(app still valid via network check)",
+      );
+    }
+  }
+}
+
+module.exports = notarizeApp;

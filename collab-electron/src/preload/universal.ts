@@ -8,7 +8,7 @@ import type { ReplayMessage } from "@collab/shared/replay-types";
 // -- PTY listener sets (terminal) ------------------------------------
 
 type PtyDataCallback = (
-  payload: { sessionId: string; data: string },
+  payload: { sessionId: string; data: Uint8Array },
 ) => void;
 type PtyExitCallback = (
   payload: { sessionId: string; exitCode: number },

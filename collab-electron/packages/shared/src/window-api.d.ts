@@ -81,7 +81,7 @@ interface TerminalTargetOption {
 }
 
 type PtyDataCb = (
-  payload: { sessionId: string; data: string },
+  payload: { sessionId: string; data: Uint8Array },
 ) => void;
 type PtyExitCb = (
   payload: { sessionId: string; exitCode: number },
