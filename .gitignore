@@ -7,3 +7,5 @@ docs/
 .claude/
 notes/
 Screenshots/
+.worktrees
+opencode.json
