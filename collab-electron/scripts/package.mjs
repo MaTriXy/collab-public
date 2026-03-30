@@ -26,7 +26,9 @@ if (!env.NODE_OPTIONS?.includes("--max-old-space-size")) {
   env.NODE_OPTIONS = `${env.NODE_OPTIONS ?? ""} --max-old-space-size=8192`.trim();
 }
 
-if (args.includes("--publish")) {
+const shouldPublish = args.includes("--publish");
+
+if (shouldPublish && process.platform !== "darwin") {
   builderArgs.splice(0, builderArgs.length, "--publish", "always");
 }
 
@@ -141,4 +143,11 @@ run(electronVite, ["build"]);
 for (const arch of targetArchitectures()) {
   installNodePtyPrebuilds(arch);
   run(electronBuilder, [...builderArgs, `--${arch}`]);
+}
+
+// On macOS, use upload-to-github.cjs instead of electron-builder's publisher
+// to avoid type-mismatch errors when the release already exists (e.g. created
+// by the Windows build as a pre-release).
+if (shouldPublish && process.platform === "darwin") {
+  run("node", [join(cwd, "scripts", "upload-to-github.cjs")]);
 }
