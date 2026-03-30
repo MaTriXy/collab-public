@@ -93,6 +93,8 @@ export interface SessionCreateParams {
   target: string;
   cwdHostPath: string;
   cwdGuestPath?: string;
+  /** @deprecated Backward compat: old sidecars expect this instead of command/args. */
+  shell?: string;
   cwd: string;
   cols: number;
   rows: number;

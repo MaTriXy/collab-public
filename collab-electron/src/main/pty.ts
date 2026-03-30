@@ -117,6 +117,8 @@ function withOptionalFields<T extends object>(
   return base;
 }
 
+let sidecarStarting: Promise<void> | null = null;
+
 export async function ensureSidecar(): Promise<void> {
   if (sidecarClient) {
     try {
@@ -128,6 +130,14 @@ export async function ensureSidecar(): Promise<void> {
     }
   }
 
+  if (sidecarStarting) return sidecarStarting;
+  sidecarStarting = doEnsureSidecar().finally(() => {
+    sidecarStarting = null;
+  });
+  return sidecarStarting;
+}
+
+async function doEnsureSidecar(): Promise<void> {
   let needsSpawn = false;
   try {
     const pidRaw = fs.readFileSync(SIDECAR_PID_PATH, "utf-8");
@@ -171,7 +181,22 @@ export async function ensureSidecar(): Promise<void> {
   }
 }
 
+function fixSpawnHelperPerms(): void {
+  if (process.platform === "win32") return;
+  try {
+    const ptyDir = path.dirname(require.resolve("node-pty"));
+    const helper = path.join(ptyDir, "..", "build", "Release", "spawn-helper");
+    const stat = fs.statSync(helper);
+    if (!(stat.mode & 0o111)) {
+      fs.chmodSync(helper, 0o755);
+    }
+  } catch {
+    // Best effort — packaged builds bundle the binary with correct perms.
+  }
+}
+
 async function spawnSidecar(): Promise<void> {
+  fixSpawnHelperPerms();
   cleanupEndpoint(SIDECAR_SOCKET_PATH);
   try { fs.unlinkSync(SIDECAR_PID_PATH); } catch {}
 
@@ -196,11 +221,19 @@ async function spawnSidecar(): Promise<void> {
     [sidecarPath, "--token", token],
     {
       detached: true,
-      stdio: "ignore",
+      stdio: ["ignore", "ignore", "pipe"],
       windowsHide: true,
       env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
     },
   );
+  child.stderr?.on("data", (chunk: Buffer) => {
+    process.stderr.write(`[sidecar] ${chunk.toString()}`);
+  });
+  child.on("exit", (code: number | null) => {
+    if (code !== 0 && code !== null) {
+      console.error(`Sidecar exited with code ${code}`);
+    }
+  });
   child.unref();
 
   const maxWait = 5000;
@@ -314,6 +347,7 @@ export async function createSession(
   const createParams = withOptionalFields({
     command: resolvedTarget.command,
     args: resolvedTarget.args,
+    shell: resolvedTarget.command,
     displayName: resolvedTarget.displayName,
     target: resolvedTarget.target,
     cwd: resolvedTarget.cwd,

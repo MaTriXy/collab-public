@@ -239,24 +239,42 @@ export class SidecarServer {
       env.LANG = "en_US.UTF-8";
     }
 
-    const ptyProcess = pty.spawn(params.command, params.args, {
-      name: "xterm-256color",
-      cols: params.cols,
-      rows: params.rows,
-      cwd: params.cwd,
-      env,
-      encoding: null,
-    });
+    // Backward compat: old clients send `shell` instead of `command`/`args`.
+    const command = params.command || params.shell || "/bin/sh";
+    const args = params.args || [];
+    const displayName = params.displayName || displayCommandName(command);
+    const target = params.target || "shell";
+    const cwdHostPath = params.cwdHostPath || params.cwd;
+
+    let ptyProcess: pty.IPty;
+    try {
+      ptyProcess = pty.spawn(command, args, {
+        name: "xterm-256color",
+        cols: params.cols,
+        rows: params.rows,
+        cwd: params.cwd,
+        env,
+        encoding: null,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      process.stderr.write(
+        `pty.spawn failed: command=${command} args=${JSON.stringify(args)}`
+        + ` cwd=${params.cwd} error=${msg}\n`,
+      );
+      sock.write(makeError(id, -32000, `Failed to spawn: ${msg}`));
+      return;
+    }
 
     const ringBuffer = new RingBuffer(this.opts.ringBufferBytes);
     const session = this.withOptional({
       id: sessionId,
       pty: ptyProcess,
-      shell: params.command,
-      displayName: params.displayName,
-      target: params.target,
+      shell: command,
+      displayName,
+      target,
       cwd: params.cwd,
-      cwdHostPath: params.cwdHostPath,
+      cwdHostPath,
       cwdGuestPath: params.cwdGuestPath,
       createdAt: new Date().toISOString(),
       ringBuffer,
