@@ -49,49 +49,90 @@ function resolveArtifact(label, artifactPath, optional) {
   return resolved;
 }
 
-// Regenerate latest-mac.yml from the actual zip on disk.
+// Discover Mac zips in dist/ and regenerate latest-mac.yml listing all of them.
 // electron-builder's PublishManager.awaitTasks() may overwrite the yml
-// after the build, so regenerate it from the actual zip on disk.
+// after the build, so regenerate it from the actual zips on disk.
+// Supports --arch to limit which architectures are uploaded.
 function regenerateMacYml() {
-  const zipName = `${product}-${version}-arm64-mac.zip`;
-  const zipPath = path.join(distDir, zipName);
+  const defaultArches = ["arm64", "x64"];
+  const arches = parseMacArches(defaultArches);
+
+  const zipEntries = [];
+  for (const arch of arches) {
+    const zipName = `${product}-${version}-${arch}-mac.zip`;
+    const zipPath = path.join(distDir, zipName);
+    if (!fs.existsSync(zipPath)) {
+      console.warn(`Skipping ${arch} — ${zipName} not found in dist/`);
+      continue;
+    }
+    zipEntries.push({ arch, zipName, zipPath });
+  }
+
+  if (zipEntries.length === 0) {
+    throw new Error(
+      `No Mac zips found in ${distDir} for architectures: ${arches.join(", ")}`,
+    );
+  }
+
+  // Build latest-mac.yml with all discovered zips.
+  const filesLines = [];
+  for (const { zipName, zipPath } of zipEntries) {
+    const stats = fs.statSync(zipPath);
+    const hash = sha512Base64(zipPath);
+    const blockmapPath = zipPath + ".blockmap";
+    const blockMapSize = fs.existsSync(blockmapPath)
+      ? fs.statSync(blockmapPath).size
+      : 0;
+    const blockMapLine =
+      blockMapSize > 0 ? `\n    blockMapSize: ${blockMapSize}` : "";
+    filesLines.push(
+      `  - url: ${zipName}`,
+      `    sha512: ${hash}`,
+      `    size: ${stats.size}${blockMapLine}`,
+    );
+  }
+
+  // Top-level path/sha512 point to the first entry (electron-updater fallback).
+  const primary = zipEntries[0];
+  const primaryHash = sha512Base64(primary.zipPath);
+
   const ymlPath = path.join(distDir, "latest-mac.yml");
-  const zipStats = fs.statSync(zipPath);
-  const zipHash = sha512Base64(zipPath);
-
-  const blockmapPath = zipPath + ".blockmap";
-  const blockMapSize = fs.existsSync(blockmapPath)
-    ? fs.statSync(blockmapPath).size
-    : 0;
-  const blockMapLine =
-    blockMapSize > 0 ? `\n    blockMapSize: ${blockMapSize}` : "";
-
   const yml = [
     `version: ${version}`,
     "files:",
-    `  - url: ${zipName}`,
-    `    sha512: ${zipHash}`,
-    `    size: ${zipStats.size}${blockMapLine}`,
-    `path: ${zipName}`,
-    `sha512: ${zipHash}`,
+    ...filesLines,
+    `path: ${primary.zipName}`,
+    `sha512: ${primaryHash}`,
     `releaseDate: '${new Date().toISOString()}'`,
     "",
   ].join("\n");
 
   fs.writeFileSync(ymlPath, yml);
-  console.log(`Regenerated latest-mac.yml (sha512: ${zipHash.slice(0, 16)}...)`);
+  console.log(
+    `Regenerated latest-mac.yml (${zipEntries.map((e) => e.arch).join(", ")})`,
+  );
 
-  const list = [
-    { label: "ZIP", path: resolveArtifact("ZIP", zipPath) },
-    { label: "latest-mac.yml", path: ymlPath },
-  ];
-  const bm = resolveArtifact("Blockmap", zipPath + ".blockmap", true);
-  if (bm) {
-    list.push({ label: "Blockmap", path: bm });
-  } else {
-    console.warn("No blockmap found -- delta updates disabled");
+  const list = [{ label: "latest-mac.yml", path: ymlPath }];
+  for (const { arch, zipName, zipPath } of zipEntries) {
+    list.push({ label: `ZIP (${arch})`, path: resolveArtifact(`ZIP (${arch})`, zipPath) });
+    const bm = resolveArtifact(`Blockmap (${arch})`, zipPath + ".blockmap", true);
+    if (bm) {
+      list.push({ label: `Blockmap (${arch})`, path: bm });
+    } else {
+      console.warn(`No blockmap for ${arch} — delta updates disabled for ${zipName}`);
+    }
   }
   return list;
+}
+
+function parseMacArches(defaultArches) {
+  const args = process.argv.slice(2);
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--arch" && args[i + 1]) {
+      return args[i + 1].split(",");
+    }
+  }
+  return defaultArches;
 }
 
 function collectWindowsArtifacts() {

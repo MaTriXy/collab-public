@@ -106,8 +106,9 @@ function targetArchitectures() {
   }
   if (arches.length > 0) return arches;
 
-  // Windows ships both x64 and arm64 installers by default.
+  // macOS and Windows ship both x64 and arm64 by default.
   if (process.platform === "win32") return ["x64", "arm64"];
+  if (process.platform === "darwin") return ["arm64", "x64"];
 
   // Fall back to the arch configured in package.json for this platform.
   const pkg = JSON.parse(readFileSync(join(cwd, "package.json"), "utf8"));
@@ -149,5 +150,9 @@ for (const arch of targetArchitectures()) {
 // type-mismatch errors when the release already exists (e.g. one platform
 // created it as a pre-release and another tries to publish as draft).
 if (shouldPublish) {
-  run("node", [join(cwd, "scripts", "upload-to-github.cjs")]);
+  const uploadArgs = [join(cwd, "scripts", "upload-to-github.cjs")];
+  // Forward --arch so the upload script only publishes the built architectures.
+  const builtArches = targetArchitectures();
+  uploadArgs.push("--arch", builtArches.join(","));
+  run("node", uploadArgs);
 }
