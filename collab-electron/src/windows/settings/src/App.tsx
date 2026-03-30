@@ -303,6 +303,27 @@ function ShortcutList({ items }: { items: { label: string; keys: string }[] }) {
   );
 }
 
+type TerminalMode = "tmux" | "sidecar";
+
+const TERMINAL_MODES: {
+  value: TerminalMode;
+  label: string;
+  description: string;
+  deprecated?: boolean;
+}[] = [
+  {
+    value: "sidecar",
+    label: "node-pty",
+    description: "Clean scrollback rendering.",
+  },
+  {
+    value: "tmux",
+    label: "tmux",
+    description: "May cause scrollback artifacts.",
+    deprecated: true,
+  },
+];
+
 type TerminalTarget = string;
 
 type TerminalTargetOption = {
@@ -311,7 +332,102 @@ type TerminalTargetOption = {
   isDefault?: boolean;
 };
 
-function TerminalPane() {
+function RadioOption({
+  selected,
+  onClick,
+  label,
+  description,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  label: string;
+  description: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-start gap-3 rounded-md px-3 py-2.5 text-left cursor-pointer"
+      style={{
+        border: `1px solid ${selected
+          ? "var(--foreground)"
+          : "color-mix(in srgb, var(--foreground) 15%, transparent)"}`,
+        backgroundColor: selected
+          ? "color-mix(in srgb, var(--foreground) 6%, transparent)"
+          : "transparent",
+      }}
+    >
+      <div
+        className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border"
+        style={{
+          borderColor: selected
+            ? "var(--foreground)"
+            : "var(--muted-foreground)",
+        }}
+      >
+        {selected && (
+          <div
+            className="h-2 w-2 rounded-full"
+            style={{ backgroundColor: "var(--foreground)" }}
+          />
+        )}
+      </div>
+      <div className="space-y-0.5">
+        <p className="text-sm font-medium">{label}</p>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+    </button>
+  );
+}
+
+function MacTerminalPane() {
+  const [mode, setMode] = useState<TerminalMode>("sidecar");
+
+  useEffect(() => {
+    api.getPref("terminalMode")
+      .then((v) => {
+        if (v === "tmux" || v === "sidecar") setMode(v);
+      })
+      .catch(() => { });
+  }, []);
+
+  async function handleModeChange(value: TerminalMode) {
+    setMode(value);
+    await api.setPref("terminalMode", value);
+  }
+
+  return (
+    <div className="space-y-6 p-6">
+      <div className="space-y-1">
+        <h2 className="text-base font-semibold">Terminal</h2>
+        <p className="text-sm text-muted-foreground">
+          Changes take effect for new terminals.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Terminal backend</p>
+        <div className="space-y-1.5">
+          {TERMINAL_MODES.map(({ value, label, description, deprecated }) => (
+            <RadioOption
+              key={value}
+              selected={mode === value}
+              onClick={() => { void handleModeChange(value); }}
+              label={label}
+              description={
+                deprecated
+                  ? `${description} Deprecated — will be removed in a future release.`
+                  : description
+              }
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WindowsTerminalPane() {
   const [target, setTarget] = useState<TerminalTarget>("auto");
   const [options, setOptions] = useState<TerminalTargetOption[]>([]);
 
@@ -344,49 +460,24 @@ function TerminalPane() {
         <p className="text-sm font-medium">Terminal target</p>
         <div className="space-y-1.5">
           {options.map(({ id, label, isDefault }) => (
-            <button
+            <RadioOption
               key={id}
-              type="button"
+              selected={target === id}
               onClick={() => { void handleTargetChange(id); }}
-              className="flex w-full items-start gap-3 rounded-md px-3 py-2.5 text-left cursor-pointer"
-              style={{
-                border: `1px solid ${target === id
-                  ? "var(--foreground)"
-                  : "color-mix(in srgb, var(--foreground) 15%, transparent)"}`,
-                backgroundColor: target === id
-                  ? "color-mix(in srgb, var(--foreground) 6%, transparent)"
-                  : "transparent",
-              }}
-            >
-              <div
-                className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border"
-                style={{
-                  borderColor: target === id
-                    ? "var(--foreground)"
-                    : "var(--muted-foreground)",
-                }}
-              >
-                {target === id && (
-                  <div
-                    className="h-2 w-2 rounded-full"
-                    style={{ backgroundColor: "var(--foreground)" }}
-                  />
-                )}
-              </div>
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium">{label}</p>
-                <p className="text-xs text-muted-foreground">
-                  {isDefault
-                    ? "Recommended default for this platform."
-                    : "Available for new terminals."}
-                </p>
-              </div>
-            </button>
+              label={label}
+              description={isDefault
+                ? "Recommended default for this platform."
+                : "Available for new terminals."}
+            />
           ))}
         </div>
       </div>
     </div>
   );
+}
+
+function TerminalPane() {
+  return IS_MAC ? <MacTerminalPane /> : <WindowsTerminalPane />;
 }
 
 function ControlsPane() {

@@ -19,7 +19,12 @@ import {
   type SessionMeta,
 } from "./tmux";
 import { cleanupEndpoint } from "./ipc-endpoint";
-import { getTerminalTarget, type TerminalTarget } from "./config";
+import {
+  getTerminalMode,
+  getTerminalTarget,
+  type TerminalMode,
+  type TerminalTarget,
+} from "./config";
 import { SidecarClient } from "./sidecar/client";
 import {
   SIDECAR_SOCKET_PATH,
@@ -335,8 +340,52 @@ export async function createSession(
   cwdGuestPath?: string;
 }> {
   const resolvedCwd = cwd || os.homedir();
+  const shell = process.env.SHELL || "/bin/zsh";
   const c = cols || 80;
   const r = rows || 24;
+
+  const mode = getTerminalMode();
+
+  if (mode === "tmux") {
+    const sessionId = crypto.randomBytes(8).toString("hex");
+    const name = tmuxSessionName(sessionId);
+    const shellName = displayBasename(shell) || "shell";
+
+    tmuxExec(
+      "new-session", "-d",
+      "-s", name,
+      "-c", resolvedCwd,
+      "-x", String(c),
+      "-y", String(r),
+    );
+
+    tmuxExec("set-environment", "-t", name, "COLLAB_PTY_SESSION_ID", sessionId);
+    tmuxExec("set-environment", "-t", name, "SHELL", shell);
+
+    attachClient(sessionId, c, r, senderWebContentsId);
+
+    writeSessionMeta(sessionId, {
+      shell,
+      cwd: resolvedCwd,
+      createdAt: new Date().toISOString(),
+      backend: "tmux",
+    });
+
+    const session = sessions.get(sessionId)!;
+    session.shell = shell;
+    session.displayName = shellName;
+
+    return {
+      sessionId,
+      shell,
+      displayName: shellName,
+      target: "shell",
+      command: shell,
+      args: [],
+      cwdHostPath: resolvedCwd,
+    };
+  }
+
   const resolvedTarget = resolveTerminalTarget(
     preferredTarget ?? getTerminalTarget(),
     resolvedCwd,

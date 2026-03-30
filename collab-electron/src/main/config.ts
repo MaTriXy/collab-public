@@ -44,9 +44,6 @@ export function loadConfig(): AppConfig {
         ? { ...(parsed.ui as Record<string, unknown>) }
         : {};
 
-    if ("terminalMode" in ui) {
-      delete ui.terminalMode;
-    }
     if (!isTerminalTarget(ui.terminalTarget)) {
       ui.terminalTarget = "auto";
     }
@@ -115,6 +112,10 @@ export function setPref(
 export type TerminalMode = "tmux" | "sidecar";
 
 export function getTerminalMode(): TerminalMode {
+  if (process.platform !== "darwin") return "sidecar";
+  const config = loadConfig();
+  const mode = getPref(config, "terminalMode");
+  if (mode === "sidecar" || mode === "tmux") return mode;
   return "sidecar";
 }
 

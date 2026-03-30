@@ -188,7 +188,7 @@ export function resolveTerminalTarget(
   return {
     target: "shell",
     command: shellPath,
-    args: ["-l"],
+    args: [],
     displayName: displayBasename(shellPath) || "shell",
     cwd: initialCwd,
     cwdHostPath: initialCwd,
