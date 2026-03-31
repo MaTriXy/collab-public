@@ -90,11 +90,15 @@ function detectMismatchedToolchain(expectedName) {
   process.exit(1);
 }
 
-// Skip electron-builder's native module rebuild. node-pty ships N-API
-// prebuilds for every platform, so we copy those into build/Release instead of
-// compiling from source (which fails on Windows — winpty's GetCommitHash.bat
-// is missing from the npm tarball).
-builderArgs.push("-c.npmRebuild=false");
+// On Windows, skip electron-builder's native module rebuild and use the N-API
+// prebuilds that ship with node-pty instead. Compiling from source fails on
+// Windows because winpty's GetCommitHash.bat is missing from the npm tarball.
+// On macOS, let electron-builder rebuild from source against Electron headers
+// so node-pty is ABI-compatible with Electron (prebuilds are compiled against
+// vanilla Node.js and cause posix_spawnp failures under Electron).
+if (process.platform === "win32") {
+  builderArgs.push("-c.npmRebuild=false");
+}
 
 function targetArchitectures() {
   const arches = [];
@@ -140,9 +144,13 @@ const electronBuilder = detectMismatchedToolchain("electron-builder");
 // Vite build is arch-independent — run once.
 run(electronVite, ["build"]);
 
-// Package once per target arch with the matching node-pty prebuilds.
+// Package once per target arch.
 for (const arch of targetArchitectures()) {
-  installNodePtyPrebuilds(arch);
+  // On Windows, install prebuilds since source compilation fails.
+  // On macOS, electron-builder's npmRebuild handles it.
+  if (process.platform === "win32") {
+    installNodePtyPrebuilds(arch);
+  }
   run(electronBuilder, [...builderArgs, `--${arch}`]);
 }
 

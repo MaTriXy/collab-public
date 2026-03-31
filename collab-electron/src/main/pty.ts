@@ -103,6 +103,10 @@ function utf8Env(): Record<string, string> {
   if (!env.LANG || !env.LANG.includes("UTF-8")) {
     env.LANG = "en_US.UTF-8";
   }
+  // xterm.js supports 24-bit color; ensure spawned shells know this
+  // so CLI tools (e.g. Claude Code) render with full true color
+  // instead of falling back to 256-color palettes.
+  env.COLORTERM = "truecolor";
   const terminfoDir = getTerminfoDir();
   if (terminfoDir) {
     env.TERMINFO = terminfoDir;
