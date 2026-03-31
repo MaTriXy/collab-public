@@ -27,7 +27,7 @@ function getCliSource(): string {
   if (app.isPackaged) {
     return join(process.resourcesPath, fileName);
   }
-  return join(app.getAppPath(), "scripts", fileName);
+  return join(app.getAppPath(), "cli", fileName);
 }
 
 function getAuxiliaryCliSources(): Array<{ source: string; target: string }> {

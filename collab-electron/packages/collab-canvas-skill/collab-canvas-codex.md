@@ -27,7 +27,7 @@ Type is inferred from file extension when `--file` is used.
 collab tile list
 
 # Add a tile (returns tile ID)
-collab tile add <type> [--file <path>] [--pos x,y] [--size w,h]
+collab tile create <type> [--file <path>] [--pos x,y] [--size w,h]
 
 # Remove a tile
 collab tile rm <id>
@@ -49,13 +49,13 @@ collab viewport set [--pan x,y] [--zoom level]
 
 ```bash
 # Side-by-side code comparison
-collab tile add code --file ./old.ts --pos 0,0
-collab tile add code --file ./new.ts --pos 23,0
+collab tile create code --file ./old.ts --pos 0,0
+collab tile create code --file ./new.ts --pos 23,0
 
 # Research workspace: graph left, notes right, terminal below
-collab tile add graph --file ./research.graph.json --pos 0,0 --size 30,25
-collab tile add note --file ./notes.md --pos 31,0
-collab tile add term --pos 0,26
+collab tile create graph --file ./research.graph.json --pos 0,0 --size 30,25
+collab tile create note --file ./notes.md --pos 31,0
+collab tile create term --pos 0,26
 
 # Frame the viewport after arranging
 collab viewport set --pan 0,0 --zoom 0.8
@@ -63,7 +63,7 @@ collab viewport set --pan 0,0 --zoom 0.8
 
 ## Conventions
 
-1. Always `collab tile list` first to see existing tiles before adding new ones.
+1. Always `collab tile list` first to see existing tiles before creating new ones.
 2. Use `collab viewport set` to frame the view after arranging tiles.
 3. Remove tiles when no longer needed with `collab tile rm`.
 4. Leave 1 grid unit gap between adjacent tiles.

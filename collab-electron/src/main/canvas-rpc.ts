@@ -73,8 +73,8 @@ export function registerCanvasRpc(win: BrowserWindow): void {
   );
 
   registerMethod(
-    "canvas.tileAdd",
-    (params) => sendToShell("canvas.tileAdd", params),
+    "canvas.tileCreate",
+    (params) => sendToShell("canvas.tileCreate", params),
     {
       description: "Create a new tile on the canvas",
       params: {

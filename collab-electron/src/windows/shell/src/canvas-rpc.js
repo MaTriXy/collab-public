@@ -31,7 +31,7 @@ export function findAutoPlacement(existingTiles, width, height) {
 /**
  * Create the canvas RPC request handler.
  *
- * Methods: tileList, tileAdd, tileRemove, tileMove, tileResize,
+ * Methods: tileList, tileCreate, tileRemove, tileMove, tileResize,
  *          viewportGet, viewportSet, terminalWrite, terminalRead,
  *          tileFocus.
  */
@@ -77,7 +77,7 @@ export function createCanvasRpc({
 					};
 					break;
 				}
-				case "tileAdd": {
+				case "tileCreate": {
 					const tileType = params.tileType || "note";
 					const size = defaultSize(tileType);
 					const pos = params.position

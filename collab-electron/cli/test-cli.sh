@@ -41,9 +41,13 @@ assert_eq() {
   fi
 }
 
-# Extract .result from a JSON-RPC response
-result_of() {
-  printf '%s' "$1" | jq -c '.result'
+assert_contains() {
+  local label="$1" needle="$2" haystack="$3"
+  if [[ "$haystack" == *"$needle"* ]]; then
+    ok "$label"
+  else
+    fail "$label" "expected output to contain '$needle', got '$haystack'"
+  fi
 }
 
 # ---- preflight ------------------------------------------------------------
@@ -51,7 +55,6 @@ result_of() {
 command -v jq >/dev/null 2>&1 || { echo "jq is required"; exit 1; }
 [[ -x "$CLI" ]] || { echo "CLI not found at $CLI"; exit 1; }
 
-# Check app is running
 if ! "$CLI" --version >/dev/null 2>&1; then
   echo "Cannot run CLI (is it executable?)"
   exit 2
@@ -60,23 +63,18 @@ fi
 echo "=== collab CLI integration tests ==="
 echo ""
 
-# ---- tile add -------------------------------------------------------------
+# ---- tile create ----------------------------------------------------------
 
-echo "--- tile add ---"
-add_out=$("$CLI" tile add note --pos 10,15 --size 22,27 2>/dev/null) \
-  && add_ok=true || add_ok=false
-tile_id=""
-if $add_ok; then
-  ok "tile add succeeds"
-  tile_id=$(printf '%s' "$add_out" | jq -r '.result.tileId')
-  if [[ -n "$tile_id" && "$tile_id" != "null" ]]; then
-    ok "tile add returns tileId ($tile_id)"
-  else
-    fail "tile add returns tileId" "response: $add_out"
-    tile_id=""
-  fi
+echo "--- tile create ---"
+tile_id=$("$CLI" tile create note --pos 10,15 --size 22,27 2>/dev/null) \
+  && create_ok=true || create_ok=false
+
+if $create_ok && [[ -n "$tile_id" ]]; then
+  ok "tile create succeeds"
+  ok "tile create returns tileId ($tile_id)"
 else
-  fail "tile add" "command failed"
+  fail "tile create" "command failed or returned empty"
+  tile_id=""
 fi
 echo ""
 
@@ -91,11 +89,10 @@ else
 fi
 
 if [[ -n "$tile_id" ]]; then
-  list_result=$(result_of "$list_out")
-  tile_json=$(printf '%s' "$list_result" \
+  tile_json=$(printf '%s' "$list_out" \
     | jq -c ".tiles[] | select(.id == \"$tile_id\")")
   if [[ -n "$tile_json" ]]; then
-    ok "added tile found in list"
+    ok "created tile found in list"
     t_px=$(printf '%s' "$tile_json" | jq '.position.x')
     t_py=$(printf '%s' "$tile_json" | jq '.position.y')
     t_sw=$(printf '%s' "$tile_json" | jq '.size.width')
@@ -105,10 +102,10 @@ if [[ -n "$tile_id" ]]; then
     assert_eq "tile size.width is 22" "22" "$t_sw"
     assert_eq "tile size.height is 27" "27" "$t_sh"
   else
-    fail "added tile found in list" "tile $tile_id not in response"
+    fail "created tile found in list" "tile $tile_id not in response"
   fi
 else
-  skipped "tile list verification" "no tile_id from add"
+  skipped "tile list verification" "no tile_id from create"
 fi
 echo ""
 
@@ -120,14 +117,13 @@ if [[ -n "$tile_id" ]]; then
     && mv_ok=true || mv_ok=false
   if $mv_ok; then
     ok "tile move succeeds"
+    assert_contains "tile move confirms" "moved $tile_id" "$mv_out"
   else
     fail "tile move" "command failed"
   fi
 
-  # Read back and verify
   list2_out=$("$CLI" tile list 2>/dev/null) && true
-  list2_result=$(result_of "$list2_out")
-  t2_json=$(printf '%s' "$list2_result" \
+  t2_json=$(printf '%s' "$list2_out" \
     | jq -c ".tiles[] | select(.id == \"$tile_id\")")
   t2_px=$(printf '%s' "$t2_json" | jq '.position.x')
   t2_py=$(printf '%s' "$t2_json" | jq '.position.y')
@@ -146,14 +142,13 @@ if [[ -n "$tile_id" ]]; then
     && rs_ok=true || rs_ok=false
   if $rs_ok; then
     ok "tile resize succeeds"
+    assert_contains "tile resize confirms" "resized $tile_id" "$rs_out"
   else
     fail "tile resize" "command failed"
   fi
 
-  # Read back and verify
   list3_out=$("$CLI" tile list 2>/dev/null) && true
-  list3_result=$(result_of "$list3_out")
-  t3_json=$(printf '%s' "$list3_result" \
+  t3_json=$(printf '%s' "$list3_out" \
     | jq -c ".tiles[] | select(.id == \"$tile_id\")")
   t3_sw=$(printf '%s' "$t3_json" | jq '.size.width')
   t3_sh=$(printf '%s' "$t3_json" | jq '.size.height')
@@ -161,6 +156,23 @@ if [[ -n "$tile_id" ]]; then
   assert_eq "resized tile height is 35" "35" "$t3_sh"
 else
   skipped "tile resize" "no tile_id"
+fi
+echo ""
+
+# ---- tile focus -----------------------------------------------------------
+
+echo "--- tile focus ---"
+if [[ -n "$tile_id" ]]; then
+  focus_out=$("$CLI" tile focus "$tile_id" 2>/dev/null) \
+    && focus_ok=true || focus_ok=false
+  if $focus_ok; then
+    ok "tile focus succeeds"
+    assert_contains "tile focus confirms" "focused $tile_id" "$focus_out"
+  else
+    fail "tile focus" "command failed"
+  fi
+else
+  skipped "tile focus" "no tile_id"
 fi
 echo ""
 
@@ -172,14 +184,13 @@ if [[ -n "$tile_id" ]]; then
     && rm_ok=true || rm_ok=false
   if $rm_ok; then
     ok "tile rm succeeds"
+    assert_contains "tile rm confirms" "removed $tile_id" "$rm_out"
   else
     fail "tile rm" "command failed"
   fi
 
-  # Verify tile is gone
   list4_out=$("$CLI" tile list 2>/dev/null) && true
-  list4_result=$(result_of "$list4_out")
-  t4_json=$(printf '%s' "$list4_result" \
+  t4_json=$(printf '%s' "$list4_out" \
     | jq -c ".tiles[] | select(.id == \"$tile_id\")" 2>/dev/null)
   if [[ -z "$t4_json" ]]; then
     ok "removed tile no longer in list"
@@ -188,6 +199,18 @@ if [[ -n "$tile_id" ]]; then
   fi
 else
   skipped "tile rm" "no tile_id"
+fi
+echo ""
+
+# ---- error handling -------------------------------------------------------
+
+echo "--- error handling ---"
+err_out=$("$CLI" tile rm nonexistent-tile 2>&1) && err_ok=true || err_ok=false
+if ! $err_ok; then
+  ok "tile rm nonexistent fails with non-zero exit"
+  assert_contains "error message present" "error:" "$err_out"
+else
+  fail "tile rm nonexistent" "should have failed"
 fi
 echo ""
 

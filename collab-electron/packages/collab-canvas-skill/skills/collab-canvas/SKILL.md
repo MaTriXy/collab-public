@@ -35,12 +35,12 @@ List all tiles on the canvas. Returns JSON array with id, type, position, size, 
 collab tile list
 ```
 
-### collab tile add
+### collab tile create
 
 Create a new tile on the canvas.
 
 ```bash
-collab tile add <type> [--file <path>] [--pos x,y] [--size w,h]
+collab tile create <type> [--file <path>] [--pos x,y] [--size w,h]
 ```
 
 - `<type>`: term, note, code, image, or graph
@@ -53,13 +53,13 @@ Returns the new tile's ID on stdout.
 **Examples:**
 ```bash
 # Open a terminal at position (5, 5)
-collab tile add term --pos 5,5
+collab tile create term --pos 5,5
 
 # Open a markdown file with default placement
-collab tile add note --file ./README.md
+collab tile create note --file ./README.md
 
 # Open a graph file at a specific position and size
-collab tile add graph --file ./entities.graph.json --pos 25,0 --size 35,30
+collab tile create graph --file ./entities.graph.json --pos 25,0 --size 35,30
 ```
 
 ### collab tile rm
@@ -137,8 +137,8 @@ collab terminal read <id> [--lines N]
 Two files next to each other for comparison.
 
 ```bash
-collab tile add code --file ./old.ts --pos 0,0
-collab tile add code --file ./new.ts --pos 23,0
+collab tile create code --file ./old.ts --pos 0,0
+collab tile create code --file ./new.ts --pos 23,0
 ```
 
 ### Research workspace
@@ -146,9 +146,9 @@ collab tile add code --file ./new.ts --pos 23,0
 Knowledge graph on the left, notes on the right, terminal below.
 
 ```bash
-collab tile add graph --file ./research.graph.json --pos 0,0 --size 30,25
-collab tile add note --file ./notes.md --pos 31,0
-collab tile add term --pos 0,26
+collab tile create graph --file ./research.graph.json --pos 0,0 --size 30,25
+collab tile create note --file ./notes.md --pos 31,0
+collab tile create term --pos 0,26
 ```
 
 ### Dashboard layout
@@ -156,10 +156,10 @@ collab tile add term --pos 0,26
 Multiple views arranged in a grid.
 
 ```bash
-collab tile add graph --file ./entities.graph.json --pos 0,0 --size 30,25
-collab tile add note --file ./log.md --pos 31,0
-collab tile add note --file ./report.md --pos 31,14
-collab tile add term --pos 0,26
+collab tile create graph --file ./entities.graph.json --pos 0,0 --size 30,25
+collab tile create note --file ./log.md --pos 31,0
+collab tile create note --file ./report.md --pos 31,14
+collab tile create term --pos 0,26
 ```
 
 ### Focus view
@@ -167,7 +167,7 @@ collab tile add term --pos 0,26
 Single tile centered with generous size.
 
 ```bash
-collab tile add code --file ./main.ts --pos 5,2 --size 40,35
+collab tile create code --file ./main.ts --pos 5,2 --size 40,35
 ```
 
 ### Agent in a terminal
@@ -176,7 +176,7 @@ Launch a Claude Code instance in a terminal tile for the human to observe.
 
 ```bash
 # Create terminal, wait for PTY, then launch agent
-collab tile add term --pos 0,0
+collab tile create term --pos 0,0
 # (use tile list to get the tile ID, then)
 collab terminal write <id> $'claude -p "summarize this project" --output-format json\n'
 # Read the result when done
@@ -185,13 +185,13 @@ collab terminal read <id> --lines 100
 
 ## Conventions
 
-1. **Always `tile list` first** to see what's already on the canvas before adding tiles.
+1. **Always `tile list` first** to see what's already on the canvas before creating tiles.
 2. **Use `tile focus` to frame** after arranging tiles so the user can see them.
 3. **Clean up when done**: remove tiles you created when they're no longer needed.
 4. **Leave 1 grid unit gap** between adjacent tiles for visual clarity.
 5. **File tiles auto-refresh**: when you write to a file that has a tile, the tile updates automatically. No need to close and reopen.
 6. **Graph tiles support incremental updates**: append nodes to a `.graph.json` file and the graph tile smoothly incorporates them.
-7. **Terminal tiles need time to initialize**: after `tile add term`, wait a few seconds before `terminal write` so the PTY session can start.
+7. **Terminal tiles need time to initialize**: after `tile create term`, wait a few seconds before `terminal write` so the PTY session can start.
 
 ## Exit Codes
 

@@ -7,10 +7,7 @@ SOCKET_PATH_FILE="$HOME/.collaborator/socket-path"
 
 # --- helpers ---------------------------------------------------------------
 
-die() {
-  echo "error: $1" >&2
-  exit "${2:-1}"
-}
+die() { echo "error: $1" >&2; exit "${2:-1}"; }
 
 read_socket_path() {
   [[ -f "$SOCKET_PATH_FILE" ]] ||
@@ -22,85 +19,92 @@ read_socket_path() {
   echo "$sock"
 }
 
+# Send a JSON-RPC request and print just the result on stdout.
+# Exits non-zero with an error message on RPC errors.
 rpc_call() {
-  local method="$1" params="$2"
+  local method="$1" params="${2:-\{\}}"
   local sock
   sock="$(read_socket_path)" || exit $?
-  local payload
-  payload=$(printf '{"jsonrpc":"2.0","id":1,"method":"%s","params":%s}\n' \
-    "$method" "$params")
 
-  local response
-  response="$(perl -e '
-    use IO::Socket::UNIX;
+  perl -MIO::Socket::UNIX -MJSON::PP -e '
+    my ($path, $method, $raw) = @ARGV;
+    my $pp = JSON::PP->new->utf8;
+    my $req = $pp->encode({
+      jsonrpc => "2.0", id => 1,
+      method  => $method,
+      params  => $pp->decode($raw),
+    });
+
     my $sock = IO::Socket::UNIX->new(
-      Peer => $ARGV[0], Type => IO::Socket::UNIX::SOCK_STREAM,
-    ) or die "connect: $!";
-    $sock->print($ARGV[1] . "\n");
+      Peer => $path, Type => IO::Socket::UNIX::SOCK_STREAM,
+    ) or die "error: connect: $!\n";
+    $sock->print("$req\n");
     $sock->flush;
-    local $SIG{ALRM} = sub { die "timeout" };
-    alarm 5;
+
+    local $SIG{ALRM} = sub { die "error: timeout\n" };
+    alarm 10;
     my $line = <$sock>;
     alarm 0;
-    chomp $line if defined $line;
-    print $line // "";
     $sock->close;
-  ' "$sock" "$payload" 2>/dev/null)" ||
-    die "connection to collaborator failed" 2
 
-  if printf '%s' "$response" | grep -q '"error"'; then
-    local errmsg
-    errmsg="$(printf '%s' "$response" | sed -n 's/.*"message":"\([^"]*\)".*/\1/p')"
-    echo "$response" >&2
-    die "${errmsg:-RPC error}" 1
-  fi
+    die "error: no response from collaborator\n" unless defined $line;
+    chomp $line;
 
-  printf '%s\n' "$response"
+    my $resp = $pp->decode($line);
+    if (my $e = $resp->{error}) {
+      print STDERR "error: " . ($e->{message} // "unknown") . "\n";
+      exit 1;
+    }
+
+    my $r = $resp->{result};
+    if (ref $r) {
+      print $pp->encode($r);
+    } elsif (defined $r) {
+      print "$r\n";
+    }
+  ' "$sock" "$method" "$params" || exit $?
 }
 
-grid_to_px() {
-  echo $(( $1 * GRID_UNIT ))
+json_pretty() {
+  perl -MJSON::PP -e '
+    local $/;
+    print JSON::PP->new->pretty->canonical->encode(
+      JSON::PP->new->decode(<STDIN>)
+    );
+  '
 }
 
-px_to_grid() {
-  echo $(( $1 / GRID_UNIT ))
+tiles_to_grid() {
+  perl -MJSON::PP -e '
+    my $gu = shift;
+    local $/;
+    my $data = JSON::PP->new->decode(<STDIN>);
+    for my $t (@{$data->{tiles} // []}) {
+      if (my $p = $t->{position}) {
+        $p->{x}     = int($p->{x}     / $gu);
+        $p->{y}     = int($p->{y}     / $gu);
+      }
+      if (my $s = $t->{size}) {
+        $s->{width}  = int($s->{width}  / $gu);
+        $s->{height} = int($s->{height} / $gu);
+      }
+    }
+    print JSON::PP->new->pretty->canonical->encode($data);
+  ' "$GRID_UNIT"
 }
+
+grid_to_px() { echo $(( $1 * GRID_UNIT )); }
 
 parse_pos() {
-  local pos="$1"
-  local x y
-  x="${pos%%,*}"
-  y="${pos##*,}"
-  [[ "$x" =~ ^[0-9]+$ ]] || die "invalid position: $pos"
-  [[ "$y" =~ ^[0-9]+$ ]] || die "invalid position: $pos"
-  echo "$x" "$y"
+  local pos="$1" x="${1%%,*}" y="${1##*,}"
+  [[ "$x" =~ ^[0-9]+$ && "$y" =~ ^[0-9]+$ ]] || die "invalid position: $pos"
+  echo "$x $y"
 }
 
 parse_size() {
-  local size="$1"
-  local w h
-  w="${size%%,*}"
-  h="${size##*,}"
-  [[ "$w" =~ ^[0-9]+$ ]] || die "invalid size: $size"
-  [[ "$h" =~ ^[0-9]+$ ]] || die "invalid size: $size"
-  echo "$w" "$h"
-}
-
-px_fields_to_grid() {
-  local response="$1"
-  shift
-  local result="$response"
-  for field in "$@"; do
-    result="$(printf '%s' "$result" | perl -pe "
-      s/\"${field}\":\s*(\d+)/
-        '\"${field}\":' . int(\$1 \/ $GRID_UNIT)
-      /ge")"
-  done
-  printf '%s\n' "$result"
-}
-
-convert_tiles_response() {
-  px_fields_to_grid "$1" x y width height
+  local size="$1" w="${1%%,*}" h="${1##*,}"
+  [[ "$w" =~ ^[0-9]+$ && "$h" =~ ^[0-9]+$ ]] || die "invalid size: $size"
+  echo "$w $h"
 }
 
 # --- usage -----------------------------------------------------------------
@@ -114,7 +118,7 @@ USAGE
 
 COMMANDS
   tile list                          List all tiles on the canvas
-  tile add <type> [options]          Add a new tile
+  tile create <type> [options]       Create a new tile
   tile rm <id>                       Remove a tile
   tile move <id> --pos x,y           Move a tile
   tile resize <id> --size w,h        Resize a tile
@@ -123,10 +127,10 @@ COMMANDS
   terminal read <id> [--lines N]     Read output from a terminal tile
   help, --help                       Show this help
 
-TILE ADD OPTIONS
+TILE CREATE OPTIONS
   <type>          Tile type: term, note, code, image, graph
   --file <path>   File to open in the tile
-  --pos x,y       Position in grid units (default: 0,0)
+  --pos x,y       Position in grid units (default: auto)
   --size w,h      Size in grid units (default: type-dependent)
 
 TILE MOVE OPTIONS
@@ -156,15 +160,13 @@ HELP
 # --- subcommands -----------------------------------------------------------
 
 cmd_tile_list() {
-  local response
-  response="$(rpc_call "canvas.tileList" "{}")"
-  convert_tiles_response "$response"
+  rpc_call "canvas.tileList" "{}" | tiles_to_grid
 }
 
-cmd_tile_add() {
-  local tile_type="" file="" pos_x=0 pos_y=0 size_w="" size_h=""
+cmd_tile_create() {
+  local tile_type="" file="" pos_x="" pos_y="" size_w="" size_h=""
 
-  [[ $# -ge 1 ]] || die "tile add requires a type (term, note, code, image, graph)"
+  [[ $# -ge 1 ]] || die "tile create requires a type (term, note, code, image, graph)"
   tile_type="$1"; shift
 
   case "$tile_type" in
@@ -198,13 +200,14 @@ cmd_tile_add() {
     esac
   done
 
-  local px_x px_y
-  px_x="$(grid_to_px "$pos_x")"
-  px_y="$(grid_to_px "$pos_y")"
+  local params="{\"tileType\":\"$tile_type\""
 
-  local params
-  params="{\"tileType\":\"$tile_type\""
-  params="$params,\"position\":{\"x\":$px_x,\"y\":$px_y}"
+  if [[ -n "$pos_x" ]]; then
+    local px_x px_y
+    px_x="$(grid_to_px "$pos_x")"
+    px_y="$(grid_to_px "$pos_y")"
+    params="$params,\"position\":{\"x\":$px_x,\"y\":$px_y}"
+  fi
 
   if [[ -n "$file" ]]; then
     local abs_file
@@ -212,7 +215,7 @@ cmd_tile_add() {
     params="$params,\"filePath\":\"$abs_file\""
   fi
 
-  if [[ -n "$size_w" && -n "$size_h" ]]; then
+  if [[ -n "$size_w" ]]; then
     local px_w px_h
     px_w="$(grid_to_px "$size_w")"
     px_h="$(grid_to_px "$size_h")"
@@ -221,13 +224,18 @@ cmd_tile_add() {
 
   params="$params}"
 
-  rpc_call "canvas.tileAdd" "$params"
+  local result
+  result="$(rpc_call "canvas.tileCreate" "$params")"
+  echo "$result" |
+    perl -MJSON::PP -e 'local $/; my $d = JSON::PP->new->decode(<STDIN>);
+      print $d->{tileId} . "\n" if $d->{tileId};'
 }
 
 cmd_tile_rm() {
   [[ $# -ge 1 ]] || die "tile rm requires a tile id"
   local tile_id="$1"
-  rpc_call "canvas.tileRemove" "{\"tileId\":\"$tile_id\"}"
+  rpc_call "canvas.tileRemove" "{\"tileId\":\"$tile_id\"}" > /dev/null
+  echo "removed $tile_id"
 }
 
 cmd_tile_move() {
@@ -256,7 +264,9 @@ cmd_tile_move() {
   px_x="$(grid_to_px "$pos_x")"
   px_y="$(grid_to_px "$pos_y")"
 
-  rpc_call "canvas.tileMove" "{\"tileId\":\"$tile_id\",\"position\":{\"x\":$px_x,\"y\":$px_y}}"
+  rpc_call "canvas.tileMove" \
+    "{\"tileId\":\"$tile_id\",\"position\":{\"x\":$px_x,\"y\":$px_y}}" > /dev/null
+  echo "moved $tile_id to $pos_x,$pos_y"
 }
 
 cmd_tile_resize() {
@@ -285,36 +295,32 @@ cmd_tile_resize() {
   px_w="$(grid_to_px "$size_w")"
   px_h="$(grid_to_px "$size_h")"
 
-  rpc_call "canvas.tileResize" "{\"tileId\":\"$tile_id\",\"size\":{\"width\":$px_w,\"height\":$px_h}}"
+  rpc_call "canvas.tileResize" \
+    "{\"tileId\":\"$tile_id\",\"size\":{\"width\":$px_w,\"height\":$px_h}}" > /dev/null
+  echo "resized $tile_id to $size_w,$size_h"
 }
 
 cmd_tile_focus() {
   [[ $# -ge 1 ]] || die "tile focus requires at least one tile id"
   local ids=""
-  local first=true
   for id in "$@"; do
-    if [[ "$first" == true ]]; then
-      ids="\"$id\""
-      first=false
-    else
-      ids="$ids,\"$id\""
-    fi
+    [[ -z "$ids" ]] && ids="\"$id\"" || ids="$ids,\"$id\""
   done
-  rpc_call "canvas.tileFocus" "{\"tileIds\":[$ids]}"
+  rpc_call "canvas.tileFocus" "{\"tileIds\":[$ids]}" > /dev/null
+  echo "focused $*"
 }
 
 cmd_terminal_write() {
   [[ $# -ge 2 ]] || die "terminal write requires <id> <input>"
-  local tile_id="$1"
-  local input="$2"
-  # Escape for JSON: backslashes, double quotes, newlines, tabs
+  local tile_id="$1" input="$2"
   input="${input//\\/\\\\}"
   input="${input//\"/\\\"}"
   input="${input//$'\n'/\\n}"
   input="${input//$'\r'/\\r}"
   input="${input//$'\t'/\\t}"
   rpc_call "canvas.terminalWrite" \
-    "{\"tileId\":\"$tile_id\",\"input\":\"$input\"}"
+    "{\"tileId\":\"$tile_id\",\"input\":\"$input\"}" > /dev/null
+  echo "wrote to $tile_id"
 }
 
 cmd_terminal_read() {
@@ -334,7 +340,7 @@ cmd_terminal_read() {
   done
 
   rpc_call "canvas.terminalRead" \
-    "{\"tileId\":\"$tile_id\",\"lines\":$lines}"
+    "{\"tileId\":\"$tile_id\",\"lines\":$lines}" | json_pretty
 }
 
 # --- main dispatch ---------------------------------------------------------
@@ -350,11 +356,11 @@ case "$1" in
     exit 0
     ;;
   tile)
-    [[ $# -ge 2 ]] || die "tile requires a subcommand (list, add, rm, move, resize)"
+    [[ $# -ge 2 ]] || die "tile requires a subcommand (list, create, rm, move, resize, focus)"
     subcmd="$2"; shift 2
     case "$subcmd" in
       list)   cmd_tile_list "$@" ;;
-      add)    cmd_tile_add "$@" ;;
+      create) cmd_tile_create "$@" ;;
       rm)     cmd_tile_rm "$@" ;;
       move)   cmd_tile_move "$@" ;;
       resize) cmd_tile_resize "$@" ;;
