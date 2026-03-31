@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # Integration tests for collab CLI canvas commands.
-# Requires: Collaborator app running, jq installed.
-# Runs against the repo copy of collab-cli.sh, not the installed one.
+# Requires: Collaborator app running, node installed, jq installed.
+# Runs against the repo copy of collab-cli.mjs, not the installed one.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-CLI="$SCRIPT_DIR/collab-cli.sh"
+cli() { node "$SCRIPT_DIR/collab-cli.mjs" "$@"; }
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -53,10 +53,10 @@ assert_contains() {
 # ---- preflight ------------------------------------------------------------
 
 command -v jq >/dev/null 2>&1 || { echo "jq is required"; exit 1; }
-[[ -x "$CLI" ]] || { echo "CLI not found at $CLI"; exit 1; }
+command -v node >/dev/null 2>&1 || { echo "node is required"; exit 1; }
 
-if ! "$CLI" --version >/dev/null 2>&1; then
-  echo "Cannot run CLI (is it executable?)"
+if ! cli --version >/dev/null 2>&1; then
+  echo "Cannot run CLI"
   exit 2
 fi
 
@@ -66,7 +66,7 @@ echo ""
 # ---- tile create ----------------------------------------------------------
 
 echo "--- tile create ---"
-tile_id=$("$CLI" tile create note --pos 10,15 --size 22,27 2>/dev/null) \
+tile_id=$(cli tile create note --pos 10,15 --size 22,27 2>/dev/null) \
   && create_ok=true || create_ok=false
 
 if $create_ok && [[ -n "$tile_id" ]]; then
@@ -81,7 +81,7 @@ echo ""
 # ---- tile list ------------------------------------------------------------
 
 echo "--- tile list ---"
-list_out=$("$CLI" tile list 2>/dev/null) && list_ok=true || list_ok=false
+list_out=$(cli tile list 2>/dev/null) && list_ok=true || list_ok=false
 if $list_ok; then
   ok "tile list succeeds"
 else
@@ -113,7 +113,7 @@ echo ""
 
 echo "--- tile move ---"
 if [[ -n "$tile_id" ]]; then
-  mv_out=$("$CLI" tile move "$tile_id" --pos 25,30 2>/dev/null) \
+  mv_out=$(cli tile move "$tile_id" --pos 25,30 2>/dev/null) \
     && mv_ok=true || mv_ok=false
   if $mv_ok; then
     ok "tile move succeeds"
@@ -122,7 +122,7 @@ if [[ -n "$tile_id" ]]; then
     fail "tile move" "command failed"
   fi
 
-  list2_out=$("$CLI" tile list 2>/dev/null) && true
+  list2_out=$(cli tile list 2>/dev/null) && true
   t2_json=$(printf '%s' "$list2_out" \
     | jq -c ".tiles[] | select(.id == \"$tile_id\")")
   t2_px=$(printf '%s' "$t2_json" | jq '.position.x')
@@ -138,7 +138,7 @@ echo ""
 
 echo "--- tile resize ---"
 if [[ -n "$tile_id" ]]; then
-  rs_out=$("$CLI" tile resize "$tile_id" --size 40,35 2>/dev/null) \
+  rs_out=$(cli tile resize "$tile_id" --size 40,35 2>/dev/null) \
     && rs_ok=true || rs_ok=false
   if $rs_ok; then
     ok "tile resize succeeds"
@@ -147,7 +147,7 @@ if [[ -n "$tile_id" ]]; then
     fail "tile resize" "command failed"
   fi
 
-  list3_out=$("$CLI" tile list 2>/dev/null) && true
+  list3_out=$(cli tile list 2>/dev/null) && true
   t3_json=$(printf '%s' "$list3_out" \
     | jq -c ".tiles[] | select(.id == \"$tile_id\")")
   t3_sw=$(printf '%s' "$t3_json" | jq '.size.width')
@@ -163,7 +163,7 @@ echo ""
 
 echo "--- tile focus ---"
 if [[ -n "$tile_id" ]]; then
-  focus_out=$("$CLI" tile focus "$tile_id" 2>/dev/null) \
+  focus_out=$(cli tile focus "$tile_id" 2>/dev/null) \
     && focus_ok=true || focus_ok=false
   if $focus_ok; then
     ok "tile focus succeeds"
@@ -180,7 +180,7 @@ echo ""
 
 echo "--- tile rm ---"
 if [[ -n "$tile_id" ]]; then
-  rm_out=$("$CLI" tile rm "$tile_id" 2>/dev/null) \
+  rm_out=$(cli tile rm "$tile_id" 2>/dev/null) \
     && rm_ok=true || rm_ok=false
   if $rm_ok; then
     ok "tile rm succeeds"
@@ -189,7 +189,7 @@ if [[ -n "$tile_id" ]]; then
     fail "tile rm" "command failed"
   fi
 
-  list4_out=$("$CLI" tile list 2>/dev/null) && true
+  list4_out=$(cli tile list 2>/dev/null) && true
   t4_json=$(printf '%s' "$list4_out" \
     | jq -c ".tiles[] | select(.id == \"$tile_id\")" 2>/dev/null)
   if [[ -z "$t4_json" ]]; then
@@ -205,7 +205,7 @@ echo ""
 # ---- error handling -------------------------------------------------------
 
 echo "--- error handling ---"
-err_out=$("$CLI" tile rm nonexistent-tile 2>&1) && err_ok=true || err_ok=false
+err_out=$(cli tile rm nonexistent-tile 2>&1) && err_ok=true || err_ok=false
 if ! $err_ok; then
   ok "tile rm nonexistent fails with non-zero exit"
   assert_contains "error message present" "error:" "$err_out"

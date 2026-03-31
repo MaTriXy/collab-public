@@ -1,7 +1,7 @@
 import { app } from "electron";
 import {
-  copyFileSync,
   chmodSync,
+  copyFileSync,
   existsSync,
   mkdirSync,
   writeFileSync,
@@ -17,49 +17,59 @@ const INSTALL_DIR = IS_WIN
     "bin",
   )
   : join(homedir(), ".local", "bin");
-const INSTALL_PATH = join(INSTALL_DIR, IS_WIN ? "collab.cmd" : "collab");
-const WINDOWS_AUXILIARY = ["collab.ps1"];
+const WRAPPER_PATH = join(INSTALL_DIR, IS_WIN ? "collab.cmd" : "collab");
+const MJS_PATH = join(INSTALL_DIR, "collab-cli.mjs");
 const COLLAB_DIR = join(homedir(), ".collaborator");
 const HINT_MARKER = join(COLLAB_DIR, "cli-path-hinted");
 
-function getCliSource(): string {
-  const fileName = IS_WIN ? "collab.cmd" : "collab-cli.sh";
+function getMjsSource(): string {
   if (app.isPackaged) {
-    return join(process.resourcesPath, fileName);
+    return join(process.resourcesPath, "collab-cli.mjs");
   }
-  return join(app.getAppPath(), "cli", fileName);
+  return join(app.getAppPath(), "cli", "collab-cli.mjs");
 }
 
-function getAuxiliaryCliSources(): Array<{ source: string; target: string }> {
-  if (!IS_WIN) return [];
-  return WINDOWS_AUXILIARY.map((fileName) => ({
-    source: app.isPackaged
-      ? join(process.resourcesPath, fileName)
-      : join(app.getAppPath(), "scripts", fileName),
-    target: join(INSTALL_DIR, fileName),
-  }));
+function generateUnixWrapper(): string {
+  return `#!/usr/bin/env bash
+set -euo pipefail
+NODE_BIN="$(cat "$HOME/.collaborator/node-path" 2>/dev/null)" || true
+if [[ -z "$NODE_BIN" || ! -x "$NODE_BIN" ]]; then
+  echo "error: collaborator is not running (no node-path file)" >&2
+  exit 2
+fi
+ELECTRON_RUN_AS_NODE=1 exec "$NODE_BIN" "$(dirname "$0")/collab-cli.mjs" "$@"
+`;
+}
+
+function generateWindowsWrapper(): string {
+  return `@echo off
+setlocal
+set "NP_FILE=%USERPROFILE%\\.collaborator\\node-path"
+if not exist "%NP_FILE%" (
+  echo error: collaborator is not running ^(no node-path file^) >&2
+  exit /b 2
+)
+set /p NODE_BIN=<"%NP_FILE%"
+set ELECTRON_RUN_AS_NODE=1
+"%NODE_BIN%" "%~dp0collab-cli.mjs" %*
+`;
 }
 
 export function installCli(): void {
-  const source = getCliSource();
-  if (!existsSync(source)) {
-    console.warn(
-      "[cli-installer] CLI source not found:", source,
-    );
+  const mjsSource = getMjsSource();
+  if (!existsSync(mjsSource)) {
+    console.warn("[cli-installer] CLI source not found:", mjsSource);
     return;
   }
 
   mkdirSync(INSTALL_DIR, { recursive: true });
-  copyFileSync(source, INSTALL_PATH);
-  for (const extra of getAuxiliaryCliSources()) {
-    if (existsSync(extra.source)) {
-      copyFileSync(extra.source, extra.target);
-    } else {
-      console.warn("[cli-installer] Auxiliary CLI source not found:", extra.source);
-    }
-  }
+
+  copyFileSync(mjsSource, MJS_PATH);
+
+  const wrapper = IS_WIN ? generateWindowsWrapper() : generateUnixWrapper();
+  writeFileSync(WRAPPER_PATH, wrapper, "utf-8");
   if (!IS_WIN) {
-    chmodSync(INSTALL_PATH, 0o755);
+    chmodSync(WRAPPER_PATH, 0o755);
   }
 
   if (!existsSync(HINT_MARKER)) {
@@ -67,14 +77,12 @@ export function installCli(): void {
     const separator = IS_WIN ? ";" : ":";
     if (!pathEnv.split(separator).includes(INSTALL_DIR)) {
       const hint = IS_WIN
-        ? `[cli-installer] collab installed to ${INSTALL_PATH}. ` +
+        ? `[cli-installer] collab installed to ${WRAPPER_PATH}. ` +
           `Add ${INSTALL_DIR} to your PATH to use it from any terminal.`
-        : `[cli-installer] collab installed to ${INSTALL_PATH}. ` +
+        : `[cli-installer] collab installed to ${WRAPPER_PATH}. ` +
           `Add ~/.local/bin to your PATH to use it from any terminal:\n` +
           `  export PATH="$HOME/.local/bin:$PATH"`;
-      console.log(
-        hint,
-      );
+      console.log(hint);
       mkdirSync(COLLAB_DIR, { recursive: true });
       writeFileSync(HINT_MARKER, "", "utf-8");
     }

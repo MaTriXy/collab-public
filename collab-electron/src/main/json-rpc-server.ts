@@ -19,6 +19,7 @@ const SOCKET_PATH = makeEndpointPath("ipc");
 // whether the app is running in dev or prod mode.
 const BASE_DIR = join(homedir(), ".collaborator");
 const SOCKET_PATH_FILE = join(BASE_DIR, "socket-path");
+const NODE_PATH_FILE = join(BASE_DIR, "node-path");
 
 type MethodHandler = (
   params: unknown,
@@ -193,6 +194,7 @@ export function startJsonRpcServer(): Promise<void> {
 
     server.listen(SOCKET_PATH, () => {
       writeFileSync(SOCKET_PATH_FILE, SOCKET_PATH, "utf-8");
+      writeFileSync(NODE_PATH_FILE, process.execPath, "utf-8");
       console.log(
         `[json-rpc] Listening on ${SOCKET_PATH}`,
       );
@@ -214,9 +216,11 @@ export function stopJsonRpcServer(): void {
 
   cleanupEndpoint(SOCKET_PATH);
 
-  try {
-    unlinkSync(SOCKET_PATH_FILE);
-  } catch {
-    // File already gone
+  for (const f of [SOCKET_PATH_FILE, NODE_PATH_FILE]) {
+    try {
+      unlinkSync(f);
+    } catch {
+      // File already gone
+    }
   }
 }
