@@ -429,6 +429,7 @@ export const SourcesFeed: React.FC<
 										onDelete={handleDelete}
 										onDeleteCancel={handleDeleteCancel}
 										onDragStart={onDragStart}
+										sortMode={sortMode}
 									/>
 								),
 							)}

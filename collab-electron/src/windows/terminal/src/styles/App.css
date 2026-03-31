@@ -9,7 +9,7 @@
 	--background: #121212;
 	--border: rgba(255, 255, 255, 0.2);
 	--muted-foreground: rgb(132, 132, 132);
-	--font-mono: 'Menlo', 'Monaco', 'Courier New', monospace;
+	--font-mono: 'Geist Mono';
 }
 
 @media (prefers-color-scheme: light) {
@@ -27,6 +27,7 @@ body,
 	width: 100%;
 	height: 100%;
 	overflow: hidden;
+	background: transparent;
 }
 
 .terminal-app {

@@ -15,6 +15,11 @@ type ThemeMode = "light" | "dark" | "system";
 interface SettingsApi {
   getPref: (key: string) => Promise<unknown>;
   setPref: (key: string, value: unknown) => Promise<void>;
+  listTerminalTargets: () => Promise<Array<{
+    id: string;
+    label: string;
+    isDefault?: boolean;
+  }>>;
   setTheme: (mode: string) => Promise<void>;
   getAppVersion: () => Promise<string>;
   getAgents: () => Promise<AgentStatus[]>;
@@ -231,9 +236,7 @@ function AppearancePane() {
   );
 }
 
-const IS_MAC =
-  typeof navigator !== "undefined" &&
-  /mac/i.test(navigator.userAgent);
+const IS_MAC = window.api.getPlatform() === "darwin";
 
 const MOD = IS_MAC ? "\u2318" : "Ctrl+";
 const SHIFT = IS_MAC ? "\u21E7" : "Shift+";
@@ -322,7 +325,63 @@ const TERMINAL_MODES: {
   },
 ];
 
-function TerminalPane() {
+type TerminalTarget = string;
+
+type TerminalTargetOption = {
+  id: string;
+  label: string;
+  isDefault?: boolean;
+};
+
+function RadioOption({
+  selected,
+  onClick,
+  label,
+  description,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  label: string;
+  description: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-start gap-3 rounded-md px-3 py-2.5 text-left cursor-pointer"
+      style={{
+        border: `1px solid ${selected
+          ? "var(--foreground)"
+          : "color-mix(in srgb, var(--foreground) 15%, transparent)"}`,
+        backgroundColor: selected
+          ? "color-mix(in srgb, var(--foreground) 6%, transparent)"
+          : "transparent",
+      }}
+    >
+      <div
+        className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border"
+        style={{
+          borderColor: selected
+            ? "var(--foreground)"
+            : "var(--muted-foreground)",
+        }}
+      >
+        {selected && (
+          <div
+            className="h-2 w-2 rounded-full"
+            style={{ backgroundColor: "var(--foreground)" }}
+          />
+        )}
+      </div>
+      <div className="space-y-0.5">
+        <p className="text-sm font-medium">{label}</p>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+    </button>
+  );
+}
+
+function MacTerminalPane() {
   const [mode, setMode] = useState<TerminalMode>("sidecar");
 
   useEffect(() => {
@@ -351,52 +410,75 @@ function TerminalPane() {
         <p className="text-sm font-medium">Terminal backend</p>
         <div className="space-y-1.5">
           {TERMINAL_MODES.map(({ value, label, description, deprecated }) => (
-            <button
+            <RadioOption
               key={value}
-              type="button"
+              selected={mode === value}
               onClick={() => { void handleModeChange(value); }}
-              className="flex w-full items-start gap-3 rounded-md px-3 py-2.5 text-left cursor-pointer"
-              style={{
-                border: `1px solid ${mode === value
-                  ? "var(--foreground)"
-                  : "color-mix(in srgb, var(--foreground) 15%, transparent)"}`,
-                backgroundColor: mode === value
-                  ? "color-mix(in srgb, var(--foreground) 6%, transparent)"
-                  : "transparent",
-              }}
-            >
-              <div
-                className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border"
-                style={{
-                  borderColor: mode === value
-                    ? "var(--foreground)"
-                    : "var(--muted-foreground)",
-                }}
-              >
-                {mode === value && (
-                  <div
-                    className="h-2 w-2 rounded-full"
-                    style={{ backgroundColor: "var(--foreground)" }}
-                  />
-                )}
-              </div>
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium">{label}</p>
-                <p className="text-xs text-muted-foreground">
-                  {description}
-                  {deprecated && (
-                    <span style={{ color: "var(--destructive, #ef4444)" }}>
-                      {" "}Deprecated — will be removed in a future release.
-                    </span>
-                  )}
-                </p>
-              </div>
-            </button>
+              label={label}
+              description={
+                deprecated
+                  ? `${description} Deprecated — will be removed in a future release.`
+                  : description
+              }
+            />
           ))}
         </div>
       </div>
     </div>
   );
+}
+
+function WindowsTerminalPane() {
+  const [target, setTarget] = useState<TerminalTarget>("auto");
+  const [options, setOptions] = useState<TerminalTargetOption[]>([]);
+
+  useEffect(() => {
+    api.getPref("terminalTarget")
+      .then((v) => {
+        if (typeof v === "string") setTarget(v);
+      })
+      .catch(() => { });
+    api.listTerminalTargets()
+      .then((items) => setOptions(items))
+      .catch(() => { });
+  }, []);
+
+  async function handleTargetChange(value: TerminalTarget) {
+    setTarget(value);
+    await api.setPref("terminalTarget", value);
+  }
+
+  return (
+    <div className="space-y-6 p-6">
+      <div className="space-y-1">
+        <h2 className="text-base font-semibold">Terminal</h2>
+        <p className="text-sm text-muted-foreground">
+          Changes take effect for new terminals.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Terminal target</p>
+        <div className="space-y-1.5">
+          {options.map(({ id, label, isDefault }) => (
+            <RadioOption
+              key={id}
+              selected={target === id}
+              onClick={() => { void handleTargetChange(id); }}
+              label={label}
+              description={isDefault
+                ? "Recommended default for this platform."
+                : "Available for new terminals."}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TerminalPane() {
+  return IS_MAC ? <MacTerminalPane /> : <WindowsTerminalPane />;
 }
 
 function ControlsPane() {

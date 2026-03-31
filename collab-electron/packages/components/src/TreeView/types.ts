@@ -27,3 +27,9 @@ export const sortModeOrder: SortMode[] = [
 
 export const SORT_MODE_STORAGE_KEY =
 	'collab:nav-sort-mode';
+
+export const TREE_SORT_MODE_STORAGE_KEY =
+	'collab:nav-tree-sort-mode';
+
+export const FEED_SORT_MODE_STORAGE_KEY =
+	'collab:nav-feed-sort-mode';

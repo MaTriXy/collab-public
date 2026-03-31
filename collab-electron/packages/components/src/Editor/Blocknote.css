@@ -133,7 +133,7 @@ strong {
 }
 
 .bn-toolbar * {
-	font-family: 'IBM Plex Mono', monospace !important;
+	font-family: var(--font-mono) !important;
 	font-weight: 400;
 }
 

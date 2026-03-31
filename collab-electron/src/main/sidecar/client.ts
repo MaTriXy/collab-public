@@ -202,13 +202,13 @@ export class SidecarClient {
 
   async attachDataSocket(
     socketPath: string,
-    onData: (data: string) => void,
+    onData: (data: Buffer) => void,
   ): Promise<net.Socket> {
     return new Promise((resolve, reject) => {
       const sock = net.createConnection(socketPath, () => {
         resolve(sock);
       });
-      sock.on("data", (chunk) => onData(chunk.toString()));
+      sock.on("data", (chunk) => onData(chunk));
       sock.on("error", reject);
     });
   }

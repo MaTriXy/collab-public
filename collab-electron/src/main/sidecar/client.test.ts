@@ -17,10 +17,30 @@ import { SIDECAR_VERSION } from "./protocol";
 
 // Short temp dir to stay under macOS 104-byte sun_path limit
 const TEST_DIR = path.join(os.tmpdir(), `cc-${process.pid}`);
-const CONTROL_SOCK = path.join(TEST_DIR, "ctrl.sock");
+const CONTROL_SOCK = process.platform === "win32"
+  ? `\\\\.\\pipe\\cc-${process.pid}-ctrl`
+  : path.join(TEST_DIR, "ctrl.sock");
 const SESSION_DIR = path.join(TEST_DIR, "s");
 const PID_PATH = path.join(TEST_DIR, "pid");
 const TOKEN = "client-test-token";
+const TEST_CWD = process.platform === "win32" ? os.tmpdir() : "/tmp";
+const TEST_SHELL = process.platform === "win32"
+  ? {
+    command: "powershell.exe",
+    args: ["-NoLogo"],
+    displayName: "PowerShell",
+    target: "powershell",
+    echo: (marker: string) => `Write-Output '${marker}'\n`,
+    exit: "exit\n",
+  }
+  : {
+    command: "/bin/sh",
+    args: [],
+    displayName: "sh",
+    target: "shell",
+    echo: (marker: string) => `echo ${marker}\n`,
+    exit: "exit\n",
+  };
 
 let server: SidecarServer | null = null;
 let client: SidecarClient | null = null;
@@ -70,31 +90,35 @@ describe("SidecarClient", () => {
     await client.connect();
 
     const { sessionId, socketPath } = await client.createSession({
-      shell: "/bin/sh",
-      cwd: "/tmp",
+      command: TEST_SHELL.command,
+      args: TEST_SHELL.args,
+      displayName: TEST_SHELL.displayName,
+      target: TEST_SHELL.target,
+      cwdHostPath: TEST_CWD,
+      cwd: TEST_CWD,
       cols: 80,
       rows: 24,
     });
     assert.match(sessionId, /^[0-9a-f]{16}$/);
 
-    const chunks: string[] = [];
+    const chunks: Buffer[] = [];
     const dataSock = await client.attachDataSocket(
       socketPath,
       (data) => chunks.push(data),
     );
 
-    dataSock.write("echo client-test\n");
+    dataSock.write(TEST_SHELL.echo("client-test"));
 
     // Wait until we see the expected output or timeout
     const deadline = Date.now() + 5000;
     while (
-      !chunks.join("").includes("client-test")
+      !Buffer.concat(chunks).toString().includes("client-test")
       && Date.now() < deadline
     ) {
       await sleep(50);
     }
 
-    assert.ok(chunks.join("").includes("client-test"));
+    assert.ok(Buffer.concat(chunks).toString().includes("client-test"));
     dataSock.destroy();
   });
 
@@ -104,8 +128,12 @@ describe("SidecarClient", () => {
     await client.connect();
 
     await client.createSession({
-      shell: "/bin/sh",
-      cwd: "/tmp",
+      command: TEST_SHELL.command,
+      args: TEST_SHELL.args,
+      displayName: TEST_SHELL.displayName,
+      target: TEST_SHELL.target,
+      cwdHostPath: TEST_CWD,
+      cwd: TEST_CWD,
       cols: 80,
       rows: 24,
     });
@@ -120,8 +148,12 @@ describe("SidecarClient", () => {
     await client.connect();
 
     const { sessionId } = await client.createSession({
-      shell: "/bin/sh",
-      cwd: "/tmp",
+      command: TEST_SHELL.command,
+      args: TEST_SHELL.args,
+      displayName: TEST_SHELL.displayName,
+      target: TEST_SHELL.target,
+      cwdHostPath: TEST_CWD,
+      cwd: TEST_CWD,
       cols: 80,
       rows: 24,
     });
@@ -185,7 +217,9 @@ describe("SidecarClient", () => {
 
   it("malformed JSON from server does not crash", async () => {
     // Create a fake server that sends garbage over the control socket
-    const fakeSockPath = path.join(TEST_DIR, "fake.sock");
+    const fakeSockPath = process.platform === "win32"
+      ? `\\\\.\\pipe\\cc-${process.pid}-fake`
+      : path.join(TEST_DIR, "fake.sock");
     fs.mkdirSync(TEST_DIR, { recursive: true });
 
     const fakeServer = net.createServer((conn) => {
@@ -243,28 +277,32 @@ describe("SidecarClient", () => {
     await client.connect();
 
     const { sessionId, socketPath } = await client.createSession({
-      shell: "/bin/sh",
-      cwd: "/tmp",
+      command: TEST_SHELL.command,
+      args: TEST_SHELL.args,
+      displayName: TEST_SHELL.displayName,
+      target: TEST_SHELL.target,
+      cwdHostPath: TEST_CWD,
+      cwd: TEST_CWD,
       cols: 80,
       rows: 24,
     });
 
     // Attach and write a marker
-    const chunks1: string[] = [];
+    const chunks1: Buffer[] = [];
     const dataSock1 = await client.attachDataSocket(
       socketPath,
       (data) => chunks1.push(data),
     );
-    dataSock1.write("echo RECONNECT_MARKER\n");
+    dataSock1.write(TEST_SHELL.echo("RECONNECT_MARKER"));
 
     const deadline1 = Date.now() + 5000;
     while (
-      !chunks1.join("").includes("RECONNECT_MARKER")
+      !Buffer.concat(chunks1).toString().includes("RECONNECT_MARKER")
       && Date.now() < deadline1
     ) {
       await sleep(50);
     }
-    assert.ok(chunks1.join("").includes("RECONNECT_MARKER"));
+    assert.ok(Buffer.concat(chunks1).toString().includes("RECONNECT_MARKER"));
 
     // Disconnect the data socket
     dataSock1.destroy();
@@ -277,7 +315,7 @@ describe("SidecarClient", () => {
     assert.equal(reconnResult.sessionId, sessionId);
 
     // Attach a new data socket — it should receive the scrollback
-    const chunks2: string[] = [];
+    const chunks2: Buffer[] = [];
     const dataSock2 = await client.attachDataSocket(
       reconnResult.socketPath,
       (data) => chunks2.push(data),
@@ -285,14 +323,14 @@ describe("SidecarClient", () => {
 
     const deadline2 = Date.now() + 5000;
     while (
-      !chunks2.join("").includes("RECONNECT_MARKER")
+      !Buffer.concat(chunks2).toString().includes("RECONNECT_MARKER")
       && Date.now() < deadline2
     ) {
       await sleep(50);
     }
 
     assert.ok(
-      chunks2.join("").includes("RECONNECT_MARKER"),
+      Buffer.concat(chunks2).toString().includes("RECONNECT_MARKER"),
       "Scrollback should contain the marker from before disconnect",
     );
     dataSock2.destroy();
@@ -304,8 +342,12 @@ describe("SidecarClient", () => {
     await client.connect();
 
     const { sessionId, socketPath } = await client.createSession({
-      shell: "/bin/sh",
-      cwd: "/tmp",
+      command: TEST_SHELL.command,
+      args: TEST_SHELL.args,
+      displayName: TEST_SHELL.displayName,
+      target: TEST_SHELL.target,
+      cwdHostPath: TEST_CWD,
+      cwd: TEST_CWD,
       cols: 80,
       rows: 24,
     });
@@ -321,7 +363,7 @@ describe("SidecarClient", () => {
       socketPath,
       () => {},
     );
-    dataSock.write("exit\n");
+    dataSock.write(TEST_SHELL.exit);
 
     // Wait for the notification
     const deadline = Date.now() + 5000;

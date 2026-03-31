@@ -6,7 +6,8 @@ import {
 	useInlineRename,
 	useDragDrop,
 	sortModeOrder,
-	SORT_MODE_STORAGE_KEY,
+	TREE_SORT_MODE_STORAGE_KEY,
+	FEED_SORT_MODE_STORAGE_KEY,
 	ENABLE_GRAPH_TILES,
 } from '@collab/components/TreeView';
 import type {
@@ -21,6 +22,15 @@ import {
 import { SourcesFeed } from '@collab/components/SourcesFeed';
 import '@collab/components/SourcesFeed/SourcesFeed.css';
 import type { AppConfig } from '@collab/shared/types';
+import { displayBasename, parentPath } from '@collab/shared/path-utils';
+
+const PLATFORM = window.api.getPlatform();
+
+const REVEAL_LABEL = PLATFORM === 'darwin'
+	? 'Reveal in Finder'
+	: PLATFORM === 'win32'
+		? 'Reveal in Explorer'
+		: 'Reveal in File Manager';
 
 function ImportWebArticleModal({
 	folderPath,
@@ -174,17 +184,21 @@ export default function App() {
 				? [
 						{
 							path: workspacePath,
-							name:
-								workspacePath.split('/').pop() ??
-								workspacePath,
+							name: displayBasename(workspacePath),
 						},
 					]
 				: [],
 		[workspacePath],
 	);
 
-	const [sortMode, setSortMode] =
-		useState<SortMode>('created-desc');
+	const [treeSortMode, setTreeSortMode] =
+		useState<SortMode>('alpha-desc');
+	const [feedSortMode, setFeedSortMode] =
+		useState<SortMode>('alpha-desc');
+	const sortMode =
+		viewMode === 'feed'
+			? feedSortMode
+			: treeSortMode;
 
 	const focusActiveSearch = useCallback(() => {
 		window.focus();
@@ -197,7 +211,7 @@ export default function App() {
 
 	useEffect(() => {
 		window.api
-			.getPref(SORT_MODE_STORAGE_KEY)
+			.getPref(TREE_SORT_MODE_STORAGE_KEY)
 			.then((v) => {
 				if (
 					typeof v === 'string' &&
@@ -205,7 +219,19 @@ export default function App() {
 						v as SortMode,
 					)
 				) {
-					setSortMode(v as SortMode);
+					setTreeSortMode(v as SortMode);
+				}
+			});
+		window.api
+			.getPref(FEED_SORT_MODE_STORAGE_KEY)
+			.then((v) => {
+				if (
+					typeof v === 'string' &&
+					sortModeOrder.includes(
+						v as SortMode,
+					)
+				) {
+					setFeedSortMode(v as SortMode);
 				}
 			});
 	}, []);
@@ -452,7 +478,15 @@ export default function App() {
 	);
 
 	const cycleSortMode = useCallback(() => {
-		setSortMode((currentMode) => {
+		const setter =
+			viewMode === 'feed'
+				? setFeedSortMode
+				: setTreeSortMode;
+		const storageKey =
+			viewMode === 'feed'
+				? FEED_SORT_MODE_STORAGE_KEY
+				: TREE_SORT_MODE_STORAGE_KEY;
+		setter((currentMode) => {
 			const currentIndex =
 				sortModeOrder.indexOf(currentMode);
 			const nextIndex =
@@ -462,12 +496,12 @@ export default function App() {
 				sortModeOrder[nextIndex] ??
 				currentMode;
 			window.api.setPref(
-				SORT_MODE_STORAGE_KEY,
+				storageKey,
 				newMode,
 			);
 			return newMode;
 		});
-	}, []);
+	}, [viewMode]);
 
 	const handlePlusClick = useCallback(
 		async (folderPath: string) => {
@@ -558,7 +592,7 @@ export default function App() {
 					},
 					{
 						id: 'reveal-in-finder',
-						label: 'Reveal in Finder',
+						label: REVEAL_LABEL,
 					},
 					{
 						id: 'terminal',
@@ -576,7 +610,7 @@ export default function App() {
 					},
 					{
 						id: 'reveal-in-finder',
-						label: 'Reveal in Finder',
+						label: REVEAL_LABEL,
 					},
 					{
 						id: 'terminal',
@@ -595,10 +629,7 @@ export default function App() {
 				? workspacePath
 				: item.kind === 'folder'
 					? item.path
-					: item.path.substring(
-							0,
-							item.path.lastIndexOf('/'),
-						);
+					: parentPath(item.path);
 
 			switch (action) {
 				case 'new-file':
@@ -662,12 +693,7 @@ export default function App() {
 						window.api.openInTerminal(
 							item.kind === 'folder'
 								? item.path
-								: item.path.substring(
-										0,
-										item.path.lastIndexOf(
-											'/',
-										),
-									),
+								: parentPath(item.path),
 						);
 					break;
 			}
