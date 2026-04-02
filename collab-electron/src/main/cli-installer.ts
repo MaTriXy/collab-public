@@ -4,6 +4,7 @@ import {
   copyFileSync,
   existsSync,
   mkdirSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
@@ -17,7 +18,7 @@ const INSTALL_DIR = IS_WIN
     "bin",
   )
   : join(homedir(), ".local", "bin");
-const WRAPPER_PATH = join(INSTALL_DIR, IS_WIN ? "collab.cmd" : "collab");
+const WRAPPER_PATH = join(INSTALL_DIR, IS_WIN ? "collab-canvas.cmd" : "collab-canvas");
 const MJS_PATH = join(INSTALL_DIR, "collab-cli.mjs");
 const COLLAB_DIR = join(homedir(), ".collaborator");
 const HINT_MARKER = join(COLLAB_DIR, "cli-path-hinted");
@@ -62,6 +63,17 @@ export function installCli(): void {
     return;
   }
 
+  const legacyNames = IS_WIN
+    ? ["collab.cmd", "collab.ps1"]
+    : ["collab"];
+  for (const name of legacyNames) {
+    const legacy = join(INSTALL_DIR, name);
+    if (existsSync(legacy)) {
+      unlinkSync(legacy);
+      console.log("[cli-installer] removed legacy CLI:", legacy);
+    }
+  }
+
   mkdirSync(INSTALL_DIR, { recursive: true });
 
   copyFileSync(mjsSource, MJS_PATH);
@@ -77,9 +89,9 @@ export function installCli(): void {
     const separator = IS_WIN ? ";" : ":";
     if (!pathEnv.split(separator).includes(INSTALL_DIR)) {
       const hint = IS_WIN
-        ? `[cli-installer] collab installed to ${WRAPPER_PATH}. ` +
+        ? `[cli-installer] collab-canvas installed to ${WRAPPER_PATH}. ` +
           `Add ${INSTALL_DIR} to your PATH to use it from any terminal.`
-        : `[cli-installer] collab installed to ${WRAPPER_PATH}. ` +
+        : `[cli-installer] collab-canvas installed to ${WRAPPER_PATH}. ` +
           `Add ~/.local/bin to your PATH to use it from any terminal:\n` +
           `  export PATH="$HOME/.local/bin:$PATH"`;
       console.log(hint);

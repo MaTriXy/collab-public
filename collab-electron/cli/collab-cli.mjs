@@ -244,10 +244,10 @@ async function cmdTerminalRead(args) {
 // --- usage ----------------------------------------------------------------
 
 function usage() {
-  console.log(`collab — control the Collaborator canvas from the command line
+  console.log(`collab-canvas — control the Collaborator canvas from the command line
 
 USAGE
-  collab <command> [options]
+  collab-canvas <command> [options]
 
 COMMANDS
   tile list                          List all tiles on the canvas
@@ -285,7 +285,7 @@ EXIT CODES
   2   Connection failure
 
 VERSION
-  collab v${VERSION}`);
+  collab-canvas v${VERSION}`);
   process.exit(0);
 }
 
@@ -304,7 +304,7 @@ try {
       break;
     case "--version":
     case "-v":
-      console.log(`collab v${VERSION}`);
+      console.log(`collab-canvas v${VERSION}`);
       break;
     case "tile": {
       if (argv.length < 2) {
@@ -337,7 +337,7 @@ try {
       break;
     }
     default:
-      die(`unknown command: ${cmd} (try: collab --help)`);
+      die(`unknown command: ${cmd} (try: collab-canvas --help)`);
   }
 } catch (err) {
   die(err.message);

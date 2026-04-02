@@ -1,6 +1,6 @@
 # Collaborator Canvas — Gemini CLI Instructions
 
-You have access to the `collab` CLI for controlling Collaborator's spatial canvas.
+You have access to the `collab-canvas` CLI for controlling Collaborator's spatial canvas.
 The canvas is a pannable, zoomable surface where tiles display terminals, files, images, and graphs.
 
 ## Coordinate System
@@ -24,48 +24,48 @@ Type is inferred from file extension when `--file` is used.
 
 ```bash
 # List all tiles
-collab tile list
+collab-canvas tile list
 
 # Add a tile (returns tile ID)
-collab tile create <type> [--file <path>] [--pos x,y] [--size w,h]
+collab-canvas tile create <type> [--file <path>] [--pos x,y] [--size w,h]
 
 # Remove a tile
-collab tile rm <id>
+collab-canvas tile rm <id>
 
 # Move a tile
-collab tile move <id> --pos x,y
+collab-canvas tile move <id> --pos x,y
 
 # Resize a tile
-collab tile resize <id> --size w,h
+collab-canvas tile resize <id> --size w,h
 
 # Get viewport state
-collab viewport
+collab-canvas viewport
 
 # Set viewport pan/zoom
-collab viewport set [--pan x,y] [--zoom level]
+collab-canvas viewport set [--pan x,y] [--zoom level]
 ```
 
 ## Examples
 
 ```bash
 # Side-by-side code comparison
-collab tile create code --file ./old.ts --pos 0,0
-collab tile create code --file ./new.ts --pos 23,0
+collab-canvas tile create code --file ./old.ts --pos 0,0
+collab-canvas tile create code --file ./new.ts --pos 23,0
 
 # Research workspace: graph left, notes right, terminal below
-collab tile create graph --file ./research.graph.json --pos 0,0 --size 30,25
-collab tile create note --file ./notes.md --pos 31,0
-collab tile create term --pos 0,26
+collab-canvas tile create graph --file ./research.graph.json --pos 0,0 --size 30,25
+collab-canvas tile create note --file ./notes.md --pos 31,0
+collab-canvas tile create term --pos 0,26
 
 # Frame the viewport after arranging
-collab viewport set --pan 0,0 --zoom 0.8
+collab-canvas viewport set --pan 0,0 --zoom 0.8
 ```
 
 ## Conventions
 
-1. Always `collab tile list` first to see existing tiles before creating new ones.
-2. Use `collab viewport set` to frame the view after arranging tiles.
-3. Remove tiles when no longer needed with `collab tile rm`.
+1. Always `collab-canvas tile list` first to see existing tiles before creating new ones.
+2. Use `collab-canvas viewport set` to frame the view after arranging tiles.
+3. Remove tiles when no longer needed with `collab-canvas tile rm`.
 4. Leave 1 grid unit gap between adjacent tiles.
 5. File tiles auto-refresh when you write to the underlying file.
 6. Graph tiles support incremental updates — append nodes to `.graph.json` and the graph updates smoothly.
