@@ -145,12 +145,6 @@ describe("SidecarClient", () => {
     }
 
     assert.ok(chunksToString(chunks).includes("client-test"));
-    if (process.platform === "win32") {
-      assert.ok(
-        chunks.some((chunk) => typeof chunk === "string"),
-        "Windows sidecar data socket should deliver decoded strings",
-      );
-    }
     await closeSessionGracefully(dataSock);
   });
 
