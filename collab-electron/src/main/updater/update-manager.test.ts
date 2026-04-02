@@ -1,9 +1,11 @@
 import { describe, test, expect, beforeEach, afterEach, mock } from "bun:test";
 
+let mockAppVersion = "0.1.0";
+
 // Mock electron
 mock.module("electron", () => ({
   app: {
-    getVersion: () => "0.1.0",
+    getVersion: () => mockAppVersion,
     isPackaged: false,
     on: () => {},
     quit: () => {},
@@ -56,7 +58,7 @@ mock.module("electron-updater", () => ({
   autoUpdater: mockAutoUpdater,
 }));
 
-const { updateManager } = await import("./update-manager");
+const { updateManager, isNewer } = await import("./update-manager");
 
 const trackedEvents: Array<{ event: string; props: unknown }> = [];
 
@@ -79,6 +81,7 @@ function resetManager() {
 
 describe("UpdateManager", () => {
   beforeEach(() => {
+    mockAppVersion = "0.1.0";
     trackedEvents.length = 0;
     updateManager.init();
   });
@@ -210,5 +213,79 @@ describe("UpdateManager", () => {
 
     await updateManager.checkForUpdates();
     expect(getState().status).toBe("checking");
+  });
+
+  test("ignores update when offered version is lower than pre-release current", async () => {
+    mockAppVersion = "0.7.0-beta.1";
+    resetManager();
+    updateManager.init();
+
+    await updateManager.checkForUpdates();
+    fireEvent("update-available", { version: "0.6.1" });
+
+    expect(getState().status).toBe("idle");
+    expect(trackedEvents.find((e) => e.event === "update_available")).toBeUndefined();
+  });
+
+  test("accepts update when offered version is higher than pre-release current", async () => {
+    mockAppVersion = "0.7.0-beta.1";
+    resetManager();
+    updateManager.init();
+
+    await updateManager.checkForUpdates();
+    fireEvent("update-available", { version: "0.8.0" });
+
+    expect(getState().status).toBe("available");
+    expect(getState().version).toBe("0.8.0");
+  });
+
+  test("accepts stable release of same base version over pre-release", async () => {
+    mockAppVersion = "0.7.0-beta.1";
+    resetManager();
+    updateManager.init();
+
+    await updateManager.checkForUpdates();
+    fireEvent("update-available", { version: "0.7.0" });
+
+    expect(getState().status).toBe("available");
+    expect(getState().version).toBe("0.7.0");
+  });
+});
+
+describe("isNewer", () => {
+  test("higher major version is newer", () => {
+    expect(isNewer("2.0.0", "1.0.0")).toBe(true);
+  });
+
+  test("lower major version is not newer", () => {
+    expect(isNewer("1.0.0", "2.0.0")).toBe(false);
+  });
+
+  test("higher minor version is newer", () => {
+    expect(isNewer("0.8.0", "0.7.0")).toBe(true);
+  });
+
+  test("lower minor version is not newer", () => {
+    expect(isNewer("0.6.1", "0.7.0-beta.1")).toBe(false);
+  });
+
+  test("higher patch version is newer", () => {
+    expect(isNewer("0.7.1", "0.7.0")).toBe(true);
+  });
+
+  test("same version is not newer", () => {
+    expect(isNewer("0.7.0", "0.7.0")).toBe(false);
+  });
+
+  test("stable is newer than pre-release of same base version", () => {
+    expect(isNewer("0.7.0", "0.7.0-beta.1")).toBe(true);
+  });
+
+  test("pre-release is not newer than same pre-release", () => {
+    expect(isNewer("0.7.0-beta.1", "0.7.0-beta.1")).toBe(false);
+  });
+
+  test("pre-release of higher base is newer than lower stable", () => {
+    expect(isNewer("0.8.0-beta.1", "0.7.0")).toBe(true);
   });
 });
