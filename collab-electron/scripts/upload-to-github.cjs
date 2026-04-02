@@ -164,10 +164,43 @@ function collectWindowsArtifacts() {
   return list;
 }
 
+function collectLinuxArtifacts() {
+  const appImage = resolveArtifact(
+    "AppImage",
+    path.join(distDir, `${product}-${version}.AppImage`),
+  );
+  const list = [
+    { label: "AppImage", path: appImage },
+  ];
+
+  const yml = resolveArtifact(
+    "latest-linux.yml",
+    path.join(distDir, "latest-linux.yml"),
+    true,
+  );
+  if (yml) {
+    list.push({ label: "latest-linux.yml", path: yml });
+  } else {
+    console.warn("No latest-linux.yml found — Linux auto-updates will not work");
+  }
+
+  const sums = resolveArtifact(
+    "SHA256SUMS",
+    path.join(distDir, "SHA256SUMS.txt"),
+    true,
+  );
+  if (sums) list.push({ label: "SHA256SUMS", path: sums });
+
+  return list;
+}
+
 const artifacts = (() => {
   try {
     if (process.platform === "darwin") {
       return collectMacArtifacts();
+    }
+    if (process.platform === "linux") {
+      return collectLinuxArtifacts();
     }
     return collectWindowsArtifacts();
   } catch (err) {

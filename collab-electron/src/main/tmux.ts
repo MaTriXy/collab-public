@@ -98,6 +98,30 @@ export function tmuxExec(...args: string[]): string {
   }
 }
 
+export function tmuxHasSession(name: string): boolean {
+  try {
+    execFileSync(
+      getTmuxBin(),
+      [...baseArgs(), "has-session", "-t", name],
+      {
+        stdio: "ignore",
+        timeout: 5000,
+        env: tmuxEnv(),
+      },
+    );
+    return true;
+  } catch (err: unknown) {
+    if (isEnoent(err)) {
+      const app = getApp();
+      const hint = app?.isPackaged
+        ? "tmux is required for legacy session recovery in packaged builds. Install it and ensure it is on your PATH."
+        : "tmux is required for dev mode. Install it with: brew install tmux";
+      throw new Error(hint);
+    }
+    return false;
+  }
+}
+
 function isEnoent(err: unknown): boolean {
   return (
     err instanceof Error &&

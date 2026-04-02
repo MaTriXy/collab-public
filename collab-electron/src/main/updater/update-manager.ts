@@ -24,6 +24,12 @@ const ERROR_RESET_DELAY_MS = 30_000;
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const INITIAL_CHECK_DELAY_MS = 5_000;
 
+function isMissingReleaseMetadataError(message: string): boolean {
+  return /Cannot find latest(?:-[^/\s]+)?\.yml in the latest release artifacts/i.test(
+    message,
+  );
+}
+
 class UpdateManager {
   private state: UpdateState = { status: "idle" };
   private initialized = false;
@@ -50,7 +56,13 @@ class UpdateManager {
     autoUpdater.logger = {
       info: (msg: string) => console.log(`[updater] ${msg}`),
       warn: (msg: string) => console.warn(`[updater] ${msg}`),
-      error: (msg: string) => console.error(`[updater] ${msg}`),
+      error: (msg: string) => {
+        if (isMissingReleaseMetadataError(msg)) {
+          console.warn("[updater] Release metadata missing; skipping update check");
+          return;
+        }
+        console.error(`[updater] ${msg}`);
+      },
       debug: (msg: string) => console.debug(`[updater] ${msg}`),
     };
 
@@ -96,6 +108,10 @@ class UpdateManager {
     });
 
     autoUpdater.on("error", (err) => {
+      if (isMissingReleaseMetadataError(err.message)) {
+        this.setState({ status: "idle", error: undefined });
+        return;
+      }
       trackEvent("update_download_failed", { error: err.message });
       this.handleError(err.message);
     });
@@ -124,7 +140,12 @@ class UpdateManager {
     try {
       await autoUpdater.checkForUpdates();
     } catch (err) {
-      this.handleError((err as Error).message);
+      const message = (err as Error).message;
+      if (isMissingReleaseMetadataError(message)) {
+        this.setState({ status: "idle", error: undefined });
+        return;
+      }
+      this.handleError(message);
     }
   }
 

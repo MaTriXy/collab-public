@@ -45,6 +45,10 @@
 			"package.json",
 			"NOTICE"
 		],
+		"asarUnpack": [
+			"node_modules/@img/sharp-libvips-linux-x64/**/*",
+			"node_modules/@img/sharp-libvips-linuxmusl-x64/**/*"
+		],
 		"afterSign": "scripts/notarize.cjs",
 		"afterAllArtifactBuild": "scripts/fix-artifacts.cjs",
 		"extraResources": [
@@ -137,7 +141,6 @@
 		"clsx": "2.1.1",
 		"d3": "7.9.0",
 		"dependency-cruiser": "^17.3.8",
-		"electron-log": "5.4.3",
 		"electron-updater": "6.8.3",
 		"front-matter": "4.0.2",
 		"ignore": "7.0.5",
@@ -182,6 +185,8 @@
 		"@img/sharp-darwin-x64": "0.34.5",
 		"@img/sharp-libvips-darwin-arm64": "1.2.4",
 		"@img/sharp-libvips-darwin-x64": "1.2.4",
+		"@img/sharp-libvips-linux-x64": "1.2.4",
+		"@img/sharp-linux-x64": "0.34.5",
 		"@parcel/watcher-darwin-arm64": "2.5.6",
 		"@parcel/watcher-darwin-x64": "2.5.6"
 	},

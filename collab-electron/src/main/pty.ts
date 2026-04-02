@@ -11,6 +11,7 @@ import {
   getTerminfoDir,
   getSocketName,
   tmuxExec,
+  tmuxHasSession,
   tmuxSessionName,
   writeSessionMeta,
   readSessionMeta,
@@ -373,9 +374,7 @@ function attachClient(
         sessions.delete(sessionId);
         return;
       }
-      try {
-        tmuxExec("has-session", "-t", name);
-      } catch {
+      if (!tmuxHasSession(name)) {
         deleteSessionMeta(sessionId);
         sendToSender(
           senderWebContentsId,
@@ -607,9 +606,7 @@ export async function reconnectSession(
 
   const name = tmuxSessionName(sessionId);
 
-  try {
-    tmuxExec("has-session", "-t", name);
-  } catch {
+  if (!tmuxHasSession(name)) {
     deleteSessionMeta(sessionId);
     throw new Error(`tmux session ${name} not found`);
   }

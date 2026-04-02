@@ -188,6 +188,16 @@ describe("UpdateManager", () => {
     expect(getState().error).toBe("network failure");
   });
 
+  test("ignores missing release metadata errors", async () => {
+    await updateManager.checkForUpdates();
+    fireEvent(
+      "error",
+      new Error("Cannot find latest-linux.yml in the latest release artifacts"),
+    );
+    expect(getState().status).toBe("idle");
+    expect(getState().error).toBeUndefined();
+  });
+
   test("install transitions to installing in dev mode", async () => {
     await updateManager.checkForUpdates();
     fireEvent("update-available", { version: "2.0.0" });
