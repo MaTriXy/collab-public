@@ -33,7 +33,7 @@ function sendToShell(
 
     shellWindow!.webContents.send("canvas:rpc-request", {
       requestId,
-      method,
+      method: method.replace(/^canvas\./, ""),
       params,
     });
   });
@@ -73,8 +73,8 @@ export function registerCanvasRpc(win: BrowserWindow): void {
   );
 
   registerMethod(
-    "canvas.tileAdd",
-    (params) => sendToShell("canvas.tileAdd", params),
+    "canvas.tileCreate",
+    (params) => sendToShell("canvas.tileCreate", params),
     {
       description: "Create a new tile on the canvas",
       params: {
@@ -116,6 +116,43 @@ export function registerCanvasRpc(win: BrowserWindow): void {
       params: {
         tileId: "ID of the tile to resize",
         size: "{width, height} in pixels",
+      },
+    },
+  );
+
+  registerMethod(
+    "canvas.terminalWrite",
+    (params) => sendToShell("canvas.terminalWrite", params),
+    {
+      description: "Write input to a terminal tile",
+      params: {
+        tileId: "ID of the terminal tile",
+        input: "String to write to the terminal",
+      },
+    },
+  );
+
+  registerMethod(
+    "canvas.terminalRead",
+    (params) => sendToShell("canvas.terminalRead", params),
+    {
+      description: "Read recent output from a terminal tile",
+      params: {
+        tileId: "ID of the terminal tile",
+        lines: "(optional) Number of lines to capture (default 50)",
+      },
+    },
+  );
+
+  registerMethod(
+    "canvas.tileFocus",
+    (params) => sendToShell("canvas.tileFocus", params),
+    {
+      description:
+        "Pan and zoom viewport to show the specified tiles, " +
+        "then flash their focus rings",
+      params: {
+        tileIds: "Array of tile IDs to bring into view",
       },
     },
   );

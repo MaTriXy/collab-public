@@ -189,6 +189,7 @@ export function createTileManager({
 		const wv = document.createElement("webview");
 		const termConfig = configs.terminalTile;
 		const params = new URLSearchParams();
+		params.set("tileId", tile.id);
 		if (tile.ptySessionId) {
 			params.set("sessionId", tile.ptySessionId);
 			params.set("restored", "1");

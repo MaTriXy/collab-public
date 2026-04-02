@@ -3,6 +3,7 @@ import {
   GearSix,
   Keyboard,
   Palette,
+  PuzzlePiece,
   Sun,
   Moon,
   Monitor,
@@ -496,7 +497,89 @@ function ControlsPane() {
   );
 }
 
-type Pane = "appearance" | "terminal" | "controls";
+interface AgentStatus {
+  id: string;
+  name: string;
+  detected: boolean;
+  installed: boolean;
+}
+
+function IntegrationsPane() {
+  const [agents, setAgents] = useState<AgentStatus[]>([]);
+  const [busy, setBusy] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    api.getAgents()
+      .then((a) => setAgents(a))
+      .catch(() => {});
+  }, []);
+
+  async function toggle(agent: AgentStatus) {
+    setBusy((s) => new Set(s).add(agent.id));
+    if (agent.installed) {
+      await api.uninstallSkill(agent.id);
+    } else {
+      await api.installSkill(agent.id);
+    }
+    const updated = await api.getAgents();
+    setAgents(updated);
+    setBusy((s) => {
+      const next = new Set(s);
+      next.delete(agent.id);
+      return next;
+    });
+  }
+
+  return (
+    <div className="space-y-6 p-6">
+      <div className="space-y-1">
+        <h2 className="text-base font-semibold">Integrations</h2>
+        <p className="text-sm text-muted-foreground">
+          Install the Canvas Skill so AI agents can control
+          the canvas from the terminal.
+        </p>
+      </div>
+
+      <div className="space-y-1.5">
+        {agents.map((agent) => (
+          <div
+            key={agent.id}
+            className="flex items-center justify-between rounded-md px-3 py-2.5"
+            style={{
+              border:
+                "1px solid color-mix(in srgb, var(--foreground) 15%, transparent)",
+            }}
+          >
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium">{agent.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {agent.detected ? "Detected" : "Not found"}
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={busy.has(agent.id)}
+              onClick={() => { void toggle(agent); }}
+              className="rounded-md px-3 py-1.5 text-xs font-medium cursor-pointer disabled:opacity-50"
+              style={{
+                backgroundColor: agent.installed
+                  ? "color-mix(in srgb, var(--foreground) 8%, transparent)"
+                  : "var(--foreground)",
+                color: agent.installed
+                  ? "var(--foreground)"
+                  : "var(--background)",
+              }}
+            >
+              {agent.installed ? "Uninstall" : "Install"}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+type Pane = "appearance" | "terminal" | "integrations" | "controls";
 
 const NAV_ITEMS: {
   id: Pane;
@@ -505,6 +588,7 @@ const NAV_ITEMS: {
 }[] = [
     { id: "appearance", label: "Appearance", icon: Palette },
     { id: "terminal", label: "Terminal", icon: Terminal },
+    { id: "integrations", label: "Integrations", icon: PuzzlePiece },
     { id: "controls", label: "Controls", icon: Keyboard },
   ];
 
@@ -628,6 +712,7 @@ export default function App() {
       <div className="flex-1 overflow-auto">
         {activePane === "appearance" && <AppearancePane />}
         {activePane === "terminal" && <TerminalPane />}
+        {activePane === "integrations" && <IntegrationsPane />}
         {activePane === "controls" && <ControlsPane />}
       </div>
     </div>

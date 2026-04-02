@@ -49,49 +49,90 @@ function resolveArtifact(label, artifactPath, optional) {
   return resolved;
 }
 
-// Regenerate latest-mac.yml from the actual zip on disk.
-// electron-builder's PublishManager.awaitTasks() may overwrite the yml
-// after the build, so regenerate it from the actual zip on disk.
-function regenerateMacYml() {
-  const zipName = `${product}-${version}-arm64-mac.zip`;
-  const zipPath = path.join(distDir, zipName);
-  const ymlPath = path.join(distDir, "latest-mac.yml");
-  const zipStats = fs.statSync(zipPath);
-  const zipHash = sha512Base64(zipPath);
+// Generate per-arch yml files for Mac auto-updates.
+// Each architecture gets its own yml (latest-arm64-mac.yml, latest-x64-mac.yml)
+// so releases can be shipped independently per arch.
+// Also generates latest-mac.yml as a bridge for old arm64 installs that still
+// look for the bare filename. Can be removed once all installs have updated.
+function collectMacArtifacts() {
+  const arches = parseArchFilter(["arm64", "x64"]);
+  const releaseDate = new Date().toISOString();
+  const list = [];
 
-  const blockmapPath = zipPath + ".blockmap";
-  const blockMapSize = fs.existsSync(blockmapPath)
-    ? fs.statSync(blockmapPath).size
-    : 0;
-  const blockMapLine =
-    blockMapSize > 0 ? `\n    blockMapSize: ${blockMapSize}` : "";
+  for (const arch of arches) {
+    const zipName = `${product}-${version}-${arch}-mac.zip`;
+    const zipPath = path.join(distDir, zipName);
+    if (!fs.existsSync(zipPath)) {
+      console.warn(`Skipping ${arch} — ${zipName} not found in dist/`);
+      continue;
+    }
 
-  const yml = [
-    `version: ${version}`,
-    "files:",
-    `  - url: ${zipName}`,
-    `    sha512: ${zipHash}`,
-    `    size: ${zipStats.size}${blockMapLine}`,
-    `path: ${zipName}`,
-    `sha512: ${zipHash}`,
-    `releaseDate: '${new Date().toISOString()}'`,
-    "",
-  ].join("\n");
+    const stats = fs.statSync(zipPath);
+    const hash = sha512Base64(zipPath);
+    const blockmapPath = zipPath + ".blockmap";
+    const blockMapSize = fs.existsSync(blockmapPath)
+      ? fs.statSync(blockmapPath).size
+      : 0;
+    const blockMapLine =
+      blockMapSize > 0 ? `\n    blockMapSize: ${blockMapSize}` : "";
 
-  fs.writeFileSync(ymlPath, yml);
-  console.log(`Regenerated latest-mac.yml (sha512: ${zipHash.slice(0, 16)}...)`);
+    const yml = [
+      `version: ${version}`,
+      "files:",
+      `  - url: ${zipName}`,
+      `    sha512: ${hash}`,
+      `    size: ${stats.size}${blockMapLine}`,
+      `path: ${zipName}`,
+      `sha512: ${hash}`,
+      `releaseDate: '${releaseDate}'`,
+      "",
+    ].join("\n");
 
-  const list = [
-    { label: "ZIP", path: resolveArtifact("ZIP", zipPath) },
-    { label: "latest-mac.yml", path: ymlPath },
-  ];
-  const bm = resolveArtifact("Blockmap", zipPath + ".blockmap", true);
-  if (bm) {
-    list.push({ label: "Blockmap", path: bm });
-  } else {
-    console.warn("No blockmap found -- delta updates disabled");
+    // Canonical yml: latest-{arch}-mac.yml (matches electron-updater channel).
+    const ymlName = `latest-${arch}-mac.yml`;
+    const ymlPath = path.join(distDir, ymlName);
+    fs.writeFileSync(ymlPath, yml);
+    console.log(`Generated ${ymlName}`);
+    list.push({ label: ymlName, path: ymlPath });
+
+    // Bridge: old arm64 installs look for latest-mac.yml (default channel).
+    // Write the same content so they find the arm64 update.
+    if (arch === "arm64") {
+      const bridgePath = path.join(distDir, "latest-mac.yml");
+      fs.writeFileSync(bridgePath, yml);
+      console.log("Generated latest-mac.yml (bridge for old arm64 installs)");
+      list.push({ label: "latest-mac.yml (bridge)", path: bridgePath });
+    }
+
+    // Zip + blockmap.
+    list.push({
+      label: `ZIP (${arch})`,
+      path: resolveArtifact(`ZIP (${arch})`, zipPath),
+    });
+    const bm = resolveArtifact(`Blockmap (${arch})`, zipPath + ".blockmap", true);
+    if (bm) {
+      list.push({ label: `Blockmap (${arch})`, path: bm });
+    } else {
+      console.warn(`No blockmap for ${arch} — delta updates disabled for ${zipName}`);
+    }
+  }
+
+  if (list.length === 0) {
+    throw new Error(
+      `No Mac zips found in ${distDir} for architectures: ${arches.join(", ")}`,
+    );
   }
   return list;
+}
+
+function parseArchFilter(defaultArches) {
+  const args = process.argv.slice(2);
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--arch" && args[i + 1]) {
+      return args[i + 1].split(",");
+    }
+  }
+  return defaultArches;
 }
 
 function collectWindowsArtifacts() {
@@ -105,8 +146,19 @@ function collectWindowsArtifacts() {
   ];
   const bm = resolveArtifact("Blockmap", exePath + ".blockmap", true);
   if (bm) list.push({ label: "Blockmap", path: bm, uploadName: uploadName + ".blockmap" });
-  const yml = resolveArtifact("latest.yml", path.join(distDir, "latest.yml"), true);
-  if (yml) list.push({ label: "latest.yml", path: yml });
+
+  // electron-builder generates latest.yml — copy it to latest-win.yml
+  // (new canonical name, channel "latest-win") and keep latest.yml as a
+  // bridge for old installs that still look for the default channel name.
+  const srcYml = resolveArtifact("latest.yml", path.join(distDir, "latest.yml"), true);
+  if (srcYml) {
+    const winYmlPath = path.join(distDir, "latest-win.yml");
+    fs.copyFileSync(srcYml, winYmlPath);
+    console.log("Generated latest-win.yml");
+    list.push({ label: "latest-win.yml", path: winYmlPath });
+    list.push({ label: "latest.yml (bridge)", path: srcYml });
+  }
+
   const sums = resolveArtifact("SHA256SUMS", path.join(distDir, "SHA256SUMS.txt"), true);
   if (sums) list.push({ label: "SHA256SUMS", path: sums });
   return list;
@@ -115,7 +167,7 @@ function collectWindowsArtifacts() {
 const artifacts = (() => {
   try {
     if (process.platform === "darwin") {
-      return regenerateMacYml();
+      return collectMacArtifacts();
     }
     return collectWindowsArtifacts();
   } catch (err) {

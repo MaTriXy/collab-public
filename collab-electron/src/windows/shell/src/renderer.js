@@ -333,6 +333,7 @@ async function init() {
 
 	const handleCanvasRpc = createCanvasRpc({
 		tileManager, viewportState, viewport, workspaceManager,
+		edgeIndicators,
 	});
 
 	// -- Wire viewport updates --
@@ -1197,7 +1198,7 @@ async function init() {
 		setTimeout(() => {
 			loadingOverlay.remove();
 		}, 350);
-		// checkFirstLaunchDialog(); // disabled — CLI not ready yet
+		checkFirstLaunchDialog();
 	});
 
 	// -- Drag-and-drop (window-level) --

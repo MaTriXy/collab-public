@@ -263,10 +263,11 @@ contextBridge.exposeInMainWorld("api", {
     cols?: number,
     rows?: number,
     target?: string,
+    tileId?: string,
   ) =>
     ipcRenderer.invoke(
       "pty:create",
-      { cwd, cols, rows, target },
+      { cwd, cols, rows, target, tileId },
     ),
   ptyWrite: (sessionId: string, data: string) =>
     ipcRenderer.invoke("pty:write", { sessionId, data }),

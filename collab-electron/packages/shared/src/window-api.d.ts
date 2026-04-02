@@ -220,6 +220,7 @@ export interface CollabApi {
     cols?: number,
     rows?: number,
     target?: string,
+    tileId?: string,
   ) => Promise<PtySession>;
   ptyWrite: (
     sessionId: string,

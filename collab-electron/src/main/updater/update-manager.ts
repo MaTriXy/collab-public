@@ -37,6 +37,16 @@ class UpdateManager {
 
     autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = true;
+
+    // Per-platform/arch update channels so each build gets its own yml file.
+    // Mac: latest-arm64-mac.yml / latest-x64-mac.yml
+    // Win: latest-win.yml
+    if (process.platform === "darwin") {
+      autoUpdater.channel = `latest-${process.arch}`;
+    } else if (process.platform === "win32") {
+      autoUpdater.channel = "latest-win";
+    }
+
     autoUpdater.logger = {
       info: (msg: string) => console.log(`[updater] ${msg}`),
       warn: (msg: string) => console.warn(`[updater] ${msg}`),
