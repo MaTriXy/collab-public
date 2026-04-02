@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { FileImage } from "@phosphor-icons/react";
+import { toCollabFileUrl } from "@collab/shared/collab-file-url";
+import { displayBasename } from "@collab/shared/path-utils";
 
 const NATIVE_IMAGE_EXTENSIONS = new Set([
   ".png", ".jpg", ".jpeg", ".gif", ".webp",
@@ -11,7 +13,7 @@ function nativeImageUrl(path: string): string | null {
   if (!NATIVE_IMAGE_EXTENSIONS.has(path.slice(dot).toLowerCase())) {
     return null;
   }
-  return `collab-file://${encodeURIComponent(path).replace(/%2F/g, "/")}`;
+  return toCollabFileUrl(path);
 }
 
 interface ImageViewProps {
@@ -51,9 +53,7 @@ export function ImageView({
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(!nativeUrl);
 
-  const filename = filePath.slice(
-    filePath.lastIndexOf("/") + 1,
-  );
+  const filename = displayBasename(filePath) || filePath;
 
   useEffect(() => {
     const url = nativeImageUrl(filePath);

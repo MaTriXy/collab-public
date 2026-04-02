@@ -4,14 +4,11 @@ import {
   createImageBlockConfig,
   imageParse,
 } from "@blocknote/core";
+import { toCollabFileUrl } from "@collab/shared/collab-file-url";
 
 export const ImageResolverContext = createContext<{ notePath: string }>({
   notePath: "",
 });
-
-function toCollabFileUrl(absolutePath: string): string {
-  return `collab-file://${encodeURIComponent(absolutePath).replace(/%2F/g, "/")}`;
-}
 
 function isExternalUrl(url: string): boolean {
   return /^https?:\/\//i.test(url);

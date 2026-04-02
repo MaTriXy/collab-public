@@ -1,12 +1,63 @@
-const REMOTE_URL_RE = /^https?:\/\//;
+import { toCollabFileUrl } from "./collab-file-url";
+import { parentPath, pathKind } from "./path-utils";
+
 const PASSTHROUGH_RE = /^(https?:\/\/|data:|collab-file:\/\/)/;
+const WINDOWS_ABSOLUTE_RE = /^[A-Za-z]:[\\/]/;
+const UNC_ABSOLUTE_RE = /^\\\\[^\\]+\\[^\\]+/;
 
 // Does not handle URLs with unescaped parentheses (rare for cover images).
 const MARKDOWN_IMAGE_RE = /!\[[^\]]*\]\((\S+?)(?:\s+"[^"]*")?\)/;
 const HTML_IMG_SRC_RE = /<img\s[^>]*?\bsrc=["']([^"']+)["'][^>]*?\/?>/i;
 
-function toCollabFileUrl(absolutePath: string): string {
-  return `collab-file://${encodeURIComponent(absolutePath).replace(/%2F/g, "/")}`;
+function isAbsoluteLocalPath(path: string): boolean {
+  return (
+    path.startsWith("/")
+    || WINDOWS_ABSOLUTE_RE.test(path)
+    || UNC_ABSOLUTE_RE.test(path)
+  );
+}
+
+function resolveRelativePath(
+  notePath: string,
+  imageRef: string,
+): string {
+  const kind = pathKind(notePath);
+  const separator = kind === "windows" || kind === "wsl-unc" ? "\\" : "/";
+  const baseDir = parentPath(notePath);
+  const combined = `${baseDir}${separator}${imageRef}`;
+  const segments = combined
+    .split(/[\\/]+/)
+    .filter(Boolean);
+
+  const resolved: string[] = [];
+  let minLength = 0;
+  let prefix = "";
+
+  if (kind === "posix") {
+    prefix = "/";
+  } else if (kind === "windows" || kind === "wsl-unc") {
+    if (/^[A-Za-z]:$/.test(segments[0] ?? "")) {
+      resolved.push(segments[0]!);
+      minLength = 1;
+    } else if (combined.startsWith("\\\\")) {
+      prefix = "\\\\";
+      resolved.push(...segments.slice(0, 2));
+      minLength = resolved.length;
+    }
+  }
+
+  for (const seg of segments.slice(minLength)) {
+    if (seg === "." || seg === "") continue;
+    if (seg === "..") {
+      if (resolved.length > minLength) {
+        resolved.pop();
+      }
+      continue;
+    }
+    resolved.push(seg);
+  }
+
+  return `${prefix}${resolved.join(separator)}`;
 }
 
 function resolveImageRef(
@@ -16,22 +67,11 @@ function resolveImageRef(
   if (PASSTHROUGH_RE.test(imageRef)) return imageRef;
   if (!notePath) return null;
 
-  if (imageRef.startsWith("/")) {
+  if (isAbsoluteLocalPath(imageRef)) {
     return toCollabFileUrl(imageRef);
   }
 
-  const noteDir = notePath.slice(0, notePath.lastIndexOf("/"));
-  const parts = `${noteDir}/${imageRef}`.split("/");
-  const resolved: string[] = [];
-  for (const seg of parts) {
-    if (seg === "." || seg === "") continue;
-    if (seg === "..") {
-      resolved.pop();
-      continue;
-    }
-    resolved.push(seg);
-  }
-  return toCollabFileUrl("/" + resolved.join("/"));
+  return toCollabFileUrl(resolveRelativePath(notePath, imageRef));
 }
 
 /**

@@ -9,6 +9,7 @@ import {
   unlinkSync,
 } from "node:fs";
 import { join } from "node:path";
+import { toCollabFileUrl } from "@collab/shared/collab-file-url";
 import sharp from "sharp";
 
 interface Request {
@@ -142,7 +143,7 @@ async function full(
 
   if (NATIVE_FORMATS.has(format)) {
     return {
-      url: `collab-file://${encodeURIComponent(path).replace(/%2F/g, "/")}`,
+      url: toCollabFileUrl(path),
       width,
       height,
     };

@@ -141,6 +141,11 @@
 		--background-editable: clear;
 	}
 
+	html.platform-win,
+	html.platform-win.dark {
+		--background-editable: var(--background);
+	}
+
 	body {
 		background: transparent;
 		color: var(--foreground);

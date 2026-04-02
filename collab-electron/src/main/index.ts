@@ -17,6 +17,7 @@ import {
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { fromCollabFileUrl } from "@collab/shared/collab-file-url";
 import {
   loadConfig,
   saveConfig,
@@ -766,10 +767,8 @@ app.whenReady().then(async () => {
   );
 
   protocol.handle("collab-file", (request) => {
-    const filePath = decodeURIComponent(
-      new URL(request.url).pathname,
-    );
-    return net.fetch(`file://${filePath}`);
+    const filePath = fromCollabFileUrl(request.url);
+    return net.fetch(pathToFileURL(filePath).toString());
   });
 
   shuttingDown = false;

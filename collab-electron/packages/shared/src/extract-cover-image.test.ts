@@ -38,6 +38,15 @@ describe("extractCoverImageUrl", () => {
     expect(result).toBe("collab-file:///absolute/path/img.png");
   });
 
+  test("resolves Windows absolute local path in frontmatter", () => {
+    const result = extractCoverImageUrl(
+      "body",
+      { cover_image: "C:\\absolute\\path\\img.png" },
+      "C:\\workspace\\notes\\note.md",
+    );
+    expect(result).toBe("collab-file:///C:/absolute/path/img.png");
+  });
+
   test("returns null for relative image without notePath", () => {
     const result = extractCoverImageUrl("body", {
       cover_image: "relative/img.png",

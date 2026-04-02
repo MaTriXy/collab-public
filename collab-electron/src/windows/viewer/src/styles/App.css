@@ -110,6 +110,14 @@ body {
 	transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+html.platform-win,
+html.platform-win body,
+html.platform-win #root,
+html.platform-win .app,
+html.platform-win .main-content {
+	background-color: var(--background);
+}
+
 :focus {
 	outline: none !important;
 }

@@ -1,6 +1,7 @@
 import { Worker } from "node:worker_threads";
 import { access, readdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
+import { toCollabFileUrl } from "@collab/shared/collab-file-url";
 import { isSubpath } from "@collab/shared/path-utils";
 import { IMAGE_EXTENSIONS, isImageFile } from "./file-filter";
 
@@ -99,7 +100,7 @@ export function getImageFull(
     return Promise.resolve({ url: "", width: 0, height: 0 });
   }
   if (isNativeImage(path)) {
-    const url = `collab-file://${encodeURIComponent(path).replace(/%2F/g, "/")}`;
+    const url = toCollabFileUrl(path);
     return Promise.resolve({ url, width: 0, height: 0 });
   }
 

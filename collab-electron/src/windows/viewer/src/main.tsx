@@ -19,6 +19,10 @@ async function bootstrap(): Promise<void> {
 
   initDarkMode();
 
+  const isWindows = window.api.getPlatform() === "win32";
+  document.documentElement.classList.toggle("platform-win", isWindows);
+  document.body.classList.toggle("platform-win", isWindows);
+
   const root = document.getElementById("root");
   if (!root) throw new Error("Missing #root element");
 
