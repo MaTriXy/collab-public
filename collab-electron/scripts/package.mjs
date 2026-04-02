@@ -113,15 +113,18 @@ function targetArchitectures() {
   }
   if (arches.length > 0) return arches;
 
-  // macOS and Windows ship both x64 and arm64 by default.
-  if (process.platform === "win32") return ["x64", "arm64"];
-  if (process.platform === "darwin") return ["arm64", "x64"];
-
-  // Fall back to the arch configured in package.json for this platform.
   const pkg = JSON.parse(readFileSync(join(cwd, "package.json"), "utf8"));
   const key = { win32: "win", darwin: "mac", linux: "linux" }[process.platform];
   const targets = pkg.build?.[key]?.target;
-  if (Array.isArray(targets) && targets[0]?.arch) return [targets[0].arch];
+  if (Array.isArray(targets)) {
+    const configuredArches = targets.flatMap((target) => {
+      if (!target?.arch) return [];
+      return Array.isArray(target.arch) ? target.arch : [target.arch];
+    });
+    if (configuredArches.length > 0) {
+      return [...new Set(configuredArches)];
+    }
+  }
 
   return [process.arch];
 }
