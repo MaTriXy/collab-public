@@ -331,7 +331,7 @@ export function createTileManager({
 		}
 
 		wv.addEventListener("dom-ready", () => {
-			wv.setZoomFactor(0.85);
+			wv.setZoomFactor(0.95);
 		});
 
 		function clearErrors() {

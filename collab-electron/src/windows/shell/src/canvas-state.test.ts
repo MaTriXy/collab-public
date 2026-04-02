@@ -33,7 +33,7 @@ describe("defaultSize", () => {
     expect(defaultSize("code")).toEqual({ width: 440, height: 540 });
     expect(defaultSize("image")).toEqual({ width: 280, height: 280 });
     expect(defaultSize("graph")).toEqual({ width: 600, height: 500 });
-    expect(defaultSize("browser")).toEqual({ width: 480, height: 640 });
+    expect(defaultSize("browser")).toEqual({ width: 800, height: 650 });
   });
 
   test("returns a copy, not the original object", () => {

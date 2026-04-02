@@ -27,7 +27,7 @@ const DEFAULT_TILE_SIZES = {
 	code: { width: 440, height: 540 },
 	image: { width: 280, height: 280 },
 	graph: { width: 600, height: 500 },
-	browser: { width: 480, height: 640 },
+	browser: { width: 800, height: 650 },
 };
 
 /** @param {TileType} type */
