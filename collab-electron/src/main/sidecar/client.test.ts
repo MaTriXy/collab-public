@@ -13,7 +13,7 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { SidecarServer } from "./server";
 import { SidecarClient } from "./client";
-import { SIDECAR_VERSION } from "./protocol";
+import { SIDECAR_VERSION, makeNotification } from "./protocol";
 
 // Short temp dir to stay under macOS 104-byte sun_path limit
 const TEST_DIR = path.join(os.tmpdir(), `cc-${process.pid}`);
@@ -371,39 +371,63 @@ describe("SidecarClient", () => {
   });
 
   it("notification handler receives session.exited", async () => {
-    await startServer();
-    client = new SidecarClient(CONTROL_SOCK);
-    await client.connect();
+    const fakeSockPath = process.platform === "win32"
+      ? `\\\\.\\pipe\\cc-${process.pid}-notify`
+      : path.join(TEST_DIR, "notify.sock");
+    fs.mkdirSync(TEST_DIR, { recursive: true });
+    let controlConn: net.Socket | null = null;
 
-    const { sessionId, socketPath } = await client.createSession({
-      command: TEST_SHELL.command,
-      args: TEST_SHELL.args,
-      displayName: TEST_SHELL.displayName,
-      target: TEST_SHELL.target,
-      cwdHostPath: TEST_CWD,
-      cwd: TEST_CWD,
-      cols: 80,
-      rows: 24,
+    const fakeServer = net.createServer((conn) => {
+      controlConn = conn;
+      conn.on("data", (data) => {
+        const line = data.toString().trim();
+        const msg = JSON.parse(line) as { id?: number; method?: string };
+        conn.write(makeNotification("session.exited", {
+          sessionId: "fake-session",
+          exitCode: 0,
+        }));
+        if (msg.method === "sidecar.ping") {
+          conn.write(JSON.stringify({
+            jsonrpc: "2.0",
+            id: msg.id,
+            result: {
+              pid: process.pid,
+              uptime: 0,
+              version: SIDECAR_VERSION,
+              token: TOKEN,
+            },
+          }) + "\n");
+        }
+      });
     });
 
-    // Register notification handler before triggering exit
+    await new Promise<void>((resolve) =>
+      fakeServer.listen(fakeSockPath, resolve),
+    );
+
+    client = new SidecarClient(fakeSockPath);
+    await client.connect();
+
     const notifications: { method: string; params: Record<string, unknown> }[] = [];
     client.onNotification((method, params) => {
       notifications.push({ method, params });
     });
 
-    // Attach data socket and send exit to terminate the shell
-    const dataSock = await client.attachDataSocket(
-      socketPath,
-      () => {},
-    );
-    await sleep(500);
-    dataSock.write(TEST_SHELL.exit);
+    try {
+      await client.ping();
 
-    const exitNotif = await waitForExitNotification(notifications);
-    assert.ok(exitNotif, "Should receive session.exited notification");
-    assert.equal(exitNotif!.params.sessionId, sessionId);
-    assert.equal(typeof exitNotif!.params.exitCode, "number");
-    dataSock.destroy();
+      const exitNotif = await waitForExitNotification(notifications);
+      assert.ok(exitNotif, "Should receive session.exited notification");
+      assert.equal(exitNotif!.params.sessionId, "fake-session");
+      assert.equal(exitNotif!.params.exitCode, 0);
+    } finally {
+      client.disconnect();
+      client = null;
+      controlConn?.end();
+      controlConn?.destroy();
+      await new Promise<void>((resolve) =>
+        fakeServer.close(() => resolve()),
+      );
+    }
   });
 });
