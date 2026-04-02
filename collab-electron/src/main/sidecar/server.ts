@@ -3,6 +3,7 @@ import * as net from "node:net";
 import * as fs from "node:fs";
 import * as crypto from "node:crypto";
 import * as pty from "node-pty";
+import type { IDisposable } from "node-pty";
 import { displayCommandName } from "@collab/shared/path-utils";
 import { cleanupEndpoint, prepareEndpoint } from "../ipc-endpoint";
 import { RingBuffer } from "./ring-buffer";
@@ -52,7 +53,6 @@ interface Session {
   reconnectQueue: Array<string | Buffer> | null;
   exited: boolean;
   terminating: boolean;
-  cleanupTimer: ReturnType<typeof setTimeout> | null;
 }
 
 export class SidecarServer {
@@ -187,11 +187,10 @@ export class SidecarServer {
   async shutdown(): Promise<void> {
     if (this.idleTimer) clearTimeout(this.idleTimer);
 
-    // Kill all sessions (collect IDs first to avoid mutating during iteration)
+    // Shut down all sessions before closing the control server so tests and
+    // non-exit-driven callers do not hang on still-open data servers.
     const ids = [...this.sessions.keys()];
-    for (const id of ids) {
-      this.killSession(id);
-    }
+    await Promise.all(ids.map((id) => this.shutdownSession(id)));
 
     // Close control clients
     for (const client of this.controlClients) {
@@ -208,6 +207,39 @@ export class SidecarServer {
     // Clean up files
     cleanupEndpoint(this.opts.controlSocketPath);
     try { fs.unlinkSync(this.opts.pidFilePath); } catch {}
+  }
+
+  private shutdownSession(sessionId: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session) return Promise.resolve();
+
+    if (session.dataClient && !session.dataClient.destroyed) {
+      session.dataClient.destroy();
+    }
+
+    if (session.exited) {
+      this.cleanupSession(sessionId);
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+      let exitSubscription: IDisposable | null = null;
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        exitSubscription?.dispose();
+        this.cleanupSession(sessionId);
+        resolve();
+      };
+
+      exitSubscription = session.pty.onExit(() => finish());
+      if (!session.terminating) {
+        session.terminating = true;
+        this.terminateSessionProcess(session);
+      }
+      setTimeout(finish, 2000);
+    });
   }
 
   private handleControlClient(sock: net.Socket): void {
@@ -372,7 +404,6 @@ export class SidecarServer {
       reconnectQueue: null,
       exited: false,
       terminating: false,
-      cleanupTimer: null,
     }, {
       cwdGuestPath: params.cwdGuestPath,
     }) as Session;
@@ -609,9 +640,7 @@ export class SidecarServer {
     }
 
     this.terminateSessionProcess(session);
-    session.cleanupTimer = setTimeout(() => {
-      this.cleanupSession(sessionId);
-    }, 2000);
+    this.cleanupSession(sessionId);
   }
 
   private terminateSessionProcess(session: Session): void {
@@ -622,10 +651,6 @@ export class SidecarServer {
     const session = this.sessions.get(sessionId);
     if (!session) return;
 
-    if (session.cleanupTimer) {
-      clearTimeout(session.cleanupTimer);
-      session.cleanupTimer = null;
-    }
     if (session.dataClient && !session.dataClient.destroyed) {
       session.dataClient.destroy();
     }
