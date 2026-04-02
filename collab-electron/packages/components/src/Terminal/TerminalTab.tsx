@@ -39,6 +39,7 @@ function TerminalTab({ sessionId, visible, restored, scrollbackData, mode }: Ter
 			cursorBlink: true,
 			scrollback: 200000,
 			allowProposedApi: true,
+			macOptionIsMeta: true,
 		});
 
 		const fit = new FitAddon();
@@ -129,6 +130,19 @@ function TerminalTab({ sessionId, visible, restored, scrollbackData, mode }: Ter
 					window.api.ptySendRawKeys(sessionId, "\x1b[13;2u");
 				}
 				return false;
+			}
+			// Option+Arrow on macOS: xterm.js always emits CSI modifier
+			// sequences for arrow keys (ignoring macOptionIsMeta), but
+			// shells expect ESC+b / ESC+f for word movement.
+			if (IS_MAC && e.type === "keydown" && e.altKey && !e.metaKey && !e.ctrlKey) {
+				if (e.key === "ArrowLeft") {
+					window.api.ptyWrite(sessionId, "\x1bb");
+					return false;
+				}
+				if (e.key === "ArrowRight") {
+					window.api.ptyWrite(sessionId, "\x1bf");
+					return false;
+				}
 			}
 			const primaryModifier = IS_MAC ? e.metaKey : e.ctrlKey;
 			if (e.type === "keydown" && primaryModifier) {
