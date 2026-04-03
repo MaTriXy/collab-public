@@ -120,10 +120,11 @@ export interface CollabApi {
   getPref: (key: string) => Promise<unknown>;
   setPref: (key: string, value: unknown) => Promise<void>;
   listTerminalTargets: () => Promise<TerminalTargetOption[]>;
-  getWorkspacePref: (key: string) => Promise<unknown>;
+  getWorkspacePref: (key: string, workspacePath: string) => Promise<unknown>;
   setWorkspacePref: (
     key: string,
     value: unknown,
+    workspacePath: string,
   ) => Promise<void>;
 
   // Theme
