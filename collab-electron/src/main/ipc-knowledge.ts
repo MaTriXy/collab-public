@@ -55,8 +55,6 @@ export function registerKnowledgeHandlers(
   );
 
   // Navigation
-  ipcMain.handle("nav:get-selected-file", () => null);
-
   ipcMain.on("nav:select-file", (_event, path) => {
     if (path) {
       ctx.trackEvent("file_selected", {

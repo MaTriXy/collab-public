@@ -249,9 +249,6 @@ async function init() {
 
 	const workspaceManager = createWorkspaceManager({
 		navWebview,
-		onApplyNavVisibility() {
-			panelManager.applyVisibility();
-		},
 	});
 
 	// Forward canvas opacity to nav webview
