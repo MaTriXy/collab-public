@@ -131,7 +131,6 @@ export interface CollabApi {
   setTheme: (mode: string) => Promise<void>;
 
   // File selection
-  getSelectedFile: () => Promise<string | null>;
   selectFile: (path: string | null) => void;
 
   // Folder selection
@@ -195,6 +194,9 @@ export interface CollabApi {
   }) => Promise<TreeNode[]>;
 
   // Workspace
+  workspaceRemoveByPath: (
+    path: string,
+  ) => Promise<{ workspaces: string[] }>;
   getWorkspaceGraph: (params: {
     workspacePath: string;
   }) => Promise<GraphData>;
@@ -322,8 +324,11 @@ export interface CollabApi {
       }>,
     ) => void,
   ) => Unsubscribe;
-  onWorkspaceChanged: (
-    cb: (workspacePath: string) => void,
+  onWorkspaceAdded: (
+    cb: (path: string) => void,
+  ) => Unsubscribe;
+  onWorkspaceRemoved: (
+    cb: (path: string) => void,
   ) => Unsubscribe;
   onWikilinksUpdated: (
     cb: (paths: string[]) => void,

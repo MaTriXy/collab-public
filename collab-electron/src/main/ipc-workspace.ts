@@ -329,6 +329,29 @@ export function registerWorkspaceHandlers(
   );
 
   ipcMain.handle(
+    "workspace:remove-by-path",
+    (_event, path: string) => {
+      const index = appConfig.workspaces.indexOf(path);
+      if (index === -1) {
+        return { workspaces: appConfig.workspaces };
+      }
+
+      appConfig.workspaces.splice(index, 1);
+      saveConfig(appConfig);
+      trackEvent("workspace_removed");
+
+      stopSingleWorkspaceServices(path);
+      ctx.forwardToWebview(
+        "nav",
+        "workspace-removed",
+        path,
+      );
+
+      return { workspaces: appConfig.workspaces };
+    },
+  );
+
+  ipcMain.handle(
     "workspace:read-tree",
     async (
       _event,

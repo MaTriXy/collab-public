@@ -14,7 +14,6 @@ import type {
 	FlatItem,
 	SearchSortControlsHandle,
 } from '@collab/components/TreeView';
-import type { AppConfig } from '@collab/shared/types';
 import { displayBasename, parentPath } from '@collab/shared/path-utils';
 
 const PLATFORM = window.api.getPlatform();
@@ -143,8 +142,8 @@ function ImportWebArticleModal({
 export default function App() {
 	const treeSearchRef =
 		useRef<SearchSortControlsHandle>(null);
-	const [config, setConfig] =
-		useState<AppConfig | null>(null);
+	const [workspacePaths, setWorkspacePaths] =
+		useState<string[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(
 		null,
@@ -156,20 +155,16 @@ export default function App() {
 		folderPath: string;
 	} | null>(null);
 
-	const workspacePath =
-		config?.workspaces?.[config?.active_workspace] ?? '';
-	const folders = useMemo(
+	const workspaces = useMemo(
 		() =>
-			workspacePath
-				? [
-						{
-							path: workspacePath,
-							name: displayBasename(workspacePath),
-						},
-					]
-				: [],
-		[workspacePath],
+			workspacePaths.map((p) => ({
+				path: p,
+				name: displayBasename(p),
+			})),
+		[workspacePaths],
 	);
+	const workspacePathsRef = useRef(workspacePaths);
+	workspacePathsRef.current = workspacePaths;
 
 	const [treeSortMode, setTreeSortMode] =
 		useState<SortMode>('alpha-desc');
@@ -200,7 +195,7 @@ export default function App() {
 		toggleExpand,
 		expandFolder,
 		expandAncestors,
-	} = useFileTree(folders, sortMode);
+	} = useFileTree(workspaces, sortMode);
 	const expandAncestorsRef = useRef(expandAncestors);
 	expandAncestorsRef.current = expandAncestors;
 
@@ -208,7 +203,7 @@ export default function App() {
 		window.api
 			.getConfig()
 			.then((cfg) => {
-				setConfig(cfg);
+				setWorkspacePaths(cfg.workspaces);
 				setLoading(false);
 			})
 			.catch((err) => {
@@ -218,36 +213,29 @@ export default function App() {
 	}, []);
 
 	useEffect(() => {
-		return window.api.onWorkspaceChanged(
-			(newPath) => {
-				setConfig((prev) => {
-					if (!prev) return prev;
-					const idx =
-						prev.workspaces.indexOf(newPath);
-					if (idx !== -1) {
-						return {
-							...prev,
-							active_workspace: idx,
-						};
-					}
-					return {
-						...prev,
-						workspaces: [
-							...prev.workspaces,
-							newPath,
-						],
-						active_workspace:
-							prev.workspaces.length,
-					};
-				});
-			},
-		);
-	}, []);
-
-	useEffect(() => {
-		window.api.getSelectedFile().then((saved) => {
-			if (saved) setSelectedPath(saved);
-		});
+		const cleanupAdd =
+			window.api.onWorkspaceAdded((path: string) => {
+				setWorkspacePaths((prev) =>
+					prev.includes(path)
+						? prev
+						: [...prev, path],
+				);
+			});
+		const cleanupRemove =
+			window.api.onWorkspaceRemoved((path: string) => {
+				setWorkspacePaths((prev) =>
+					prev.filter((p) => p !== path),
+				);
+				setSelectedPath((current) =>
+					current?.startsWith(path + '/')
+						? null
+						: current,
+				);
+			});
+		return () => {
+			cleanupAdd();
+			cleanupRemove();
+		};
 	}, []);
 
 	useEffect(() => {
@@ -363,10 +351,11 @@ export default function App() {
 
 	const deleteFile = useCallback(
 		async (path: string) => {
-			if (path === workspacePath) return;
+			if (workspacePathsRef.current.includes(path))
+				return;
 			await window.api.trashFile(path);
 		},
-		[workspacePath],
+		[],
 	);
 
 	const selectFolder = useCallback(
@@ -469,6 +458,7 @@ export default function App() {
 			item: FlatItem | null,
 		) => {
 			const ms = multiSelectRef.current;
+			const wsPaths = workspacePathsRef.current;
 			const multiSelected =
 				ms.selected.size > 1;
 
@@ -493,9 +483,48 @@ export default function App() {
 						label: 'New Folder',
 					},
 				];
+			} else if (item.kind === 'workspace') {
+				menuItems = [
+					{ id: 'new-file', label: 'New File' },
+					{
+						id: 'new-folder',
+						label: 'New Folder',
+					},
+					{
+						id: 'import-web-article',
+						label: 'Import Web Article',
+					},
+					{ id: 'separator', label: '' },
+					...(ENABLE_GRAPH_TILES
+						? [
+								{
+									id: 'open-graph',
+									label: 'Open as Graph',
+								},
+							]
+						: []),
+					{
+						id: 'copy-path',
+						label: 'Copy Filepath',
+					},
+					{
+						id: 'reveal-in-finder',
+						label: REVEAL_LABEL,
+					},
+					{
+						id: 'terminal',
+						label: 'Open in Terminal',
+					},
+					{ id: 'separator', label: '' },
+					{
+						id: 'remove-workspace',
+						label: 'Remove Workspace',
+					},
+				];
 			} else if (item.kind === 'folder') {
-				const isRoot =
-					item.path === workspacePath;
+				const isRoot = wsPaths.includes(
+					item.path,
+				);
 				menuItems = [
 					{ id: 'new-file', label: 'New File' },
 					{
@@ -562,8 +591,9 @@ export default function App() {
 			if (!action) return;
 
 			const parentFolder = !item
-				? workspacePath
-				: item.kind === 'folder'
+				? wsPaths[0] ?? ''
+				: item.kind === 'workspace' ||
+						item.kind === 'folder'
 					? item.path
 					: parentPath(item.path);
 
@@ -596,13 +626,17 @@ export default function App() {
 				case 'delete':
 					if (multiSelected) {
 						for (const path of ms.selected) {
-							if (path === workspacePath) continue;
+							if (wsPaths.includes(path))
+								continue;
 							await window.api.trashFile(
 								path,
 							);
 						}
 						ms.clearSelection();
-					} else if (item && item.path !== workspacePath) {
+					} else if (
+						item &&
+						!wsPaths.includes(item.path)
+					) {
 						await window.api.trashFile(
 							item.path,
 						);
@@ -627,14 +661,21 @@ export default function App() {
 				case 'terminal':
 					if (item)
 						window.api.openInTerminal(
-							item.kind === 'folder'
+							item.kind === 'folder' ||
+								item.kind === 'workspace'
 								? item.path
 								: parentPath(item.path),
 						);
 					break;
+				case 'remove-workspace':
+					if (item && item.kind === 'workspace')
+						await window.api.workspaceRemoveByPath(
+							item.path,
+						);
+					break;
 			}
 		},
-		[workspacePath, expandFolder],
+		[expandFolder],
 	);
 
 	const selectedPathRef = useRef(selectedPath);
@@ -683,8 +724,10 @@ export default function App() {
 				ms.selected.size > 0
 			) {
 				e.preventDefault();
+				const wsPaths =
+					workspacePathsRef.current;
 				for (const path of ms.selected) {
-					if (path === workspacePath) continue;
+					if (wsPaths.includes(path)) continue;
 					void window.api.trashFile(path);
 				}
 				ms.clearSelection();
@@ -709,7 +752,20 @@ export default function App() {
 				'keydown',
 				handler,
 			);
-	}, [focusActiveSearch, selectFile, workspacePath]);
+	}, [focusActiveSearch, selectFile]);
+
+	const handleToggleFolder = useCallback(
+		(path: string, recursive: boolean) => {
+			const isWorkspace =
+				workspacePathsRef.current.includes(path);
+			toggleExpand(
+				path,
+				recursive,
+				isWorkspace ? 'workspace' : 'folder',
+			);
+		},
+		[toggleExpand],
+	);
 
 	return (
 		<div className="app">
@@ -727,7 +783,7 @@ export default function App() {
 
 				{!loading &&
 					!error &&
-					workspacePath && (
+					workspacePaths.length > 0 && (
 					<TreeView
 						flatItems={flatItems}
 						selectedPath={
@@ -740,7 +796,7 @@ export default function App() {
 							multiSelect.handleClick
 						}
 						onToggleFolder={
-							toggleExpand
+							handleToggleFolder
 						}
 						onCreateFile={
 							createFileInFolder
@@ -795,9 +851,6 @@ export default function App() {
 						onContextMenu={
 							handleContextMenu
 						}
-						workspacePath={
-							workspacePath
-						}
 						cursorPath={
 							multiSelect.cursor
 						}
@@ -808,7 +861,7 @@ export default function App() {
 
 				{!loading &&
 					!error &&
-					!workspacePath && (
+					workspacePaths.length === 0 && (
 						<div className="empty-state">
 							<p>
 								No workspace selected. Open

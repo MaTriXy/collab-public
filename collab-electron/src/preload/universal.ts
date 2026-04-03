@@ -340,6 +340,10 @@ contextBridge.exposeInMainWorld("api", {
     return () => ipcRenderer.removeListener("nav-drag-active", handler);
   },
 
+  // Workspace management
+  workspaceRemoveByPath: (path: string) =>
+    ipcRenderer.invoke("workspace:remove-by-path", path),
+
   // Theme
   setTheme: (mode: string) =>
     ipcRenderer.invoke("theme:set", mode),
