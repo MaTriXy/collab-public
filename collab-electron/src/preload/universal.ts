@@ -1,6 +1,7 @@
 import {
   contextBridge,
   ipcRenderer,
+  webUtils,
   type IpcRendererEvent,
 } from "electron";
 import type { ReplayMessage } from "@collab/shared/replay-types";
@@ -337,6 +338,11 @@ contextBridge.exposeInMainWorld("api", {
   offRunInTerminal: (cb: RunInTerminalCb) => {
     runInTerminalListeners.delete(cb);
   },
+
+  // File drop support
+  getPathForFile: (file: File): string => webUtils.getPathForFile(file),
+  isDirectory: (filePath: string): Promise<boolean> =>
+    ipcRenderer.invoke("fs:is-directory", filePath),
 
   // Cross-webview drag-and-drop
   setDragPaths: (paths: string[]) =>

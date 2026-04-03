@@ -8,6 +8,7 @@ import {
   generateId,
   defaultSize,
   inferTileType,
+  tileAtPoint,
   snapToGrid,
   selectTile,
   deselectTile,
@@ -33,7 +34,7 @@ describe("defaultSize", () => {
     expect(defaultSize("code")).toEqual({ width: 440, height: 540 });
     expect(defaultSize("image")).toEqual({ width: 280, height: 280 });
     expect(defaultSize("graph")).toEqual({ width: 600, height: 500 });
-    expect(defaultSize("browser")).toEqual({ width: 480, height: 640 });
+    expect(defaultSize("browser")).toEqual({ width: 800, height: 650 });
   });
 
   test("returns a copy, not the original object", () => {
@@ -232,6 +233,40 @@ describe("inferTileType", () => {
 
   test("handles paths with dots in directories", () => {
     expect(inferTileType("/path/.hidden/file.md")).toBe("note");
+  });
+});
+
+// -- tileAtPoint --
+
+describe("tileAtPoint", () => {
+  test("returns tile when point is inside", () => {
+    addTile({ id: "t1", type: "term", x: 100, y: 100, width: 200, height: 200, zIndex: 1 });
+    expect(tileAtPoint(150, 150)?.id).toBe("t1");
+  });
+
+  test("returns null when point is outside all tiles", () => {
+    addTile({ id: "t1", type: "term", x: 100, y: 100, width: 200, height: 200, zIndex: 1 });
+    expect(tileAtPoint(50, 50)).toBeNull();
+  });
+
+  test("returns topmost tile when overlapping", () => {
+    addTile({ id: "t1", type: "term", x: 0, y: 0, width: 200, height: 200, zIndex: 1 });
+    addTile({ id: "t2", type: "note", x: 50, y: 50, width: 200, height: 200, zIndex: 5 });
+    expect(tileAtPoint(100, 100)?.id).toBe("t2");
+  });
+
+  test("returns null for empty tiles array", () => {
+    expect(tileAtPoint(0, 0)).toBeNull();
+  });
+
+  test("point on left/top boundary is inside", () => {
+    addTile({ id: "t1", type: "term", x: 100, y: 100, width: 200, height: 200, zIndex: 1 });
+    expect(tileAtPoint(100, 100)?.id).toBe("t1");
+  });
+
+  test("point on right/bottom boundary is outside", () => {
+    addTile({ id: "t1", type: "term", x: 100, y: 100, width: 200, height: 200, zIndex: 1 });
+    expect(tileAtPoint(300, 300)).toBeNull();
   });
 });
 

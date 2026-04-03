@@ -173,6 +173,18 @@ for (const arch of builtArches) {
   run(process.execPath, [electronBuilder, ...builderArgs, `--${arch}`]);
 }
 
+// electron-builder's npmRebuild rewrites node-pty's native binary in-place
+// for the last target architecture. On a cross-compile (e.g. x64 pass on an
+// arm64 Mac) this leaves the wrong ABI in node_modules, breaking `bun run dev`.
+// Rebuild for the host arch to restore a working dev environment.
+if (process.platform !== "win32") {
+  console.log("• Restoring node-pty for host architecture…");
+  run(
+    join(cwd, "node_modules", ".bin", "electron-rebuild"),
+    ["-f", "-w", "node-pty"],
+  );
+}
+
 // Use upload-to-github.cjs instead of electron-builder's publisher to avoid
 // type-mismatch errors when the release already exists (e.g. one platform
 // created it as a pre-release and another tries to publish as draft).

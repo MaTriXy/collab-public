@@ -27,7 +27,7 @@ const DEFAULT_TILE_SIZES = {
 	code: { width: 440, height: 540 },
 	image: { width: 280, height: 280 },
 	graph: { width: 600, height: 500 },
-	browser: { width: 480, height: 640 },
+	browser: { width: 800, height: 650 },
 };
 
 /** @param {TileType} type */
@@ -115,6 +115,20 @@ export function isSelected(id) {
 /** @returns {Tile[]} */
 export function getSelectedTiles() {
 	return tiles.filter((t) => selectedTileIds.has(t.id));
+}
+
+/** @returns {Tile | null} */
+export function tileAtPoint(cx, cy) {
+	const sorted = [...tiles].sort((a, b) => b.zIndex - a.zIndex);
+	for (const tile of sorted) {
+		if (
+			cx >= tile.x && cx < tile.x + tile.width &&
+			cy >= tile.y && cy < tile.y + tile.height
+		) {
+			return tile;
+		}
+	}
+	return null;
 }
 
 export function inferTileType(filePath) {

@@ -1,46 +1,25 @@
-import { appendFileSync, mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { format } from "node:util";
+import log from "electron-log/main.js";
+import { join } from "node:path";
 import { COLLAB_DIR } from "./paths";
 
-const MAIN_LOG_PATH = join(COLLAB_DIR, "logs", "main.log");
-const PATCHED = Symbol.for("collaborator.mainLogger.patched");
+const sessionTimestamp = new Date()
+  .toISOString()
+  .replaceAll(":", "-")
+  .replace(/\.\d+Z$/, "");
 
-type ConsoleMethod =
-  | "log"
-  | "info"
-  | "warn"
-  | "error"
-  | "debug";
+log.transports.file.resolvePathFn = () =>
+  join(COLLAB_DIR, "logs", `main-${sessionTimestamp}.log`);
 
-function writeLine(level: ConsoleMethod, args: unknown[]): void {
-  try {
-    mkdirSync(dirname(MAIN_LOG_PATH), { recursive: true });
-    appendFileSync(
-      MAIN_LOG_PATH,
-      `[${new Date().toISOString()}] [${level}] ${format(...args)}\n`,
-      "utf8",
-    );
-  } catch {
-    // Never let logging failures affect app startup or runtime behavior.
-  }
-}
+log.initialize();
 
-function patchConsole(method: ConsoleMethod): void {
-  const original = console[method].bind(console);
+// Route console.* to electron-log so main-process output
+// goes to both stdout and the log file.
+Object.assign(console, {
+  log: log.info,
+  info: log.info,
+  warn: log.warn,
+  error: log.error,
+  debug: log.debug,
+});
 
-  console[method] = (...args: unknown[]) => {
-    writeLine(method, args);
-    original(...args);
-  };
-}
-
-if (!(globalThis as Record<PropertyKey, unknown>)[PATCHED]) {
-  (globalThis as Record<PropertyKey, unknown>)[PATCHED] = true;
-
-  for (const method of ["log", "info", "warn", "error", "debug"] as const) {
-    patchConsole(method);
-  }
-}
-
-export { MAIN_LOG_PATH };
+export default log;

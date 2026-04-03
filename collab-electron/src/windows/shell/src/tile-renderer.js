@@ -1,6 +1,26 @@
 import { splitDisplayPath } from "@collab/shared/path-utils";
 
 /**
+ * Turns arbitrary input into a navigable URL.
+ * If the input looks like a URL (has a scheme or a recognized TLD),
+ * return it (prepending https:// when needed). Otherwise treat it as
+ * a Google search query.
+ */
+function resolveInput(raw) {
+  const s = raw.trim();
+  if (!s) return "";
+
+  // Already has a scheme
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) return s;
+
+  // Looks like a domain (with TLD), optionally followed by path/query
+  if (/^[^\s/]+\.[a-z]{2,}(\/\S*)?$/i.test(s)) return `https://${s}`;
+
+  // Anything else → Google search
+  return `https://www.google.com/search?q=${encodeURIComponent(s)}`;
+}
+
+/**
  * Creates the DOM structure for a tile.
  * @param {import('./canvas-state.js').Tile} tile
  * @param {object} callbacks
@@ -69,7 +89,7 @@ export function createTileDOM(tile, callbacks) {
     urlInput = document.createElement("input");
     urlInput.type = "text";
     urlInput.className = "tile-url-input";
-    urlInput.placeholder = "Enter URL...";
+    urlInput.placeholder = "Search or enter URL...";
     urlInput.value = tile.url || "";
     if (tile.url) urlInput.readOnly = true;
     let dragOccurred = false;
@@ -90,7 +110,7 @@ export function createTileDOM(tile, callbacks) {
     urlInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
-        const url = urlInput.value.trim();
+        const url = resolveInput(urlInput.value);
         if (url && callbacks.onNavigate) callbacks.onNavigate(tile.id, url);
         urlInput.readOnly = true;
         urlInput.blur();
