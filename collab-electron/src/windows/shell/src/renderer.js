@@ -8,6 +8,7 @@ import { initDarkMode, applyCanvasOpacity } from "./dark-mode.js";
 import { createWebview, isFocusSearchShortcut } from "./webview-factory.js";
 import { createViewport } from "./canvas-viewport.js";
 import { createEdgeIndicators } from "./edge-indicators.js";
+import { createMinimap } from "./canvas-minimap.js";
 import { createPanel } from "./panel-manager.js";
 import { createWorkspaceManager } from "./workspace-manager.js";
 import { createCanvasRpc } from "./canvas-rpc.js";
@@ -516,6 +517,16 @@ async function init() {
 		},
 	});
 
+	// -- Minimap --
+
+	const minimap = createMinimap({
+		viewportEl: canvasEl,
+		wrapperEl: document.getElementById("minimap-wrapper"),
+		viewportState,
+		getTiles: () => tiles,
+		viewport,
+	});
+
 	// -- Canvas RPC --
 
 	const handleCanvasRpc = createCanvasRpc({
@@ -527,10 +538,12 @@ async function init() {
 	viewport.init(viewportState, () => {
 		tileManager.repositionAllTiles();
 		edgeIndicators.update();
+		minimap.update();
 		tileManager.saveCanvasDebounced();
 	});
 
 	edgeIndicators.update();
+	minimap.update();
 
 	// -- Agent panel init (after tileManager, since getAllWebviews references it) --
 
