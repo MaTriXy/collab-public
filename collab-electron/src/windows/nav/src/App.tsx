@@ -855,8 +855,8 @@ export default function App() {
 					workspacePaths.length === 0 && (
 						<div className="empty-state">
 							<p>
-								No workspace selected. Open
-								a folder in Settings.
+								No workspace added. Use the
+								+ button above to add a folder.
 							</p>
 						</div>
 					)}

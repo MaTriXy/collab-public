@@ -264,11 +264,17 @@ async function init() {
 		tileListContainer, handleDndMessage,
 	);
 
+	const wsAddRow = document.getElementById("workspace-add-row");
+
 	function updateSidebarContent(mode) {
 		navContainer.style.display =
 			mode === "files" ? "flex" : "none";
 		tileListContainer.style.display =
 			mode === "tiles" ? "flex" : "none";
+		if (wsAddRow) {
+			wsAddRow.style.display =
+				mode === "files" ? "" : "none";
+		}
 	}
 	updateSidebarContent(panelManager.getMode());
 
