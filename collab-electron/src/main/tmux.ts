@@ -1,7 +1,7 @@
 import { execFileSync, execFile } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { COLLAB_DIR } from "./paths";
+import { COLLAB_DIR, DEV_WORKTREE_ID } from "./paths";
 
 export interface SessionMeta {
   shell: string;
@@ -21,7 +21,11 @@ export const SESSION_DIR = path.join(
 );
 function getSocketName(): string {
   const app = getApp();
-  if (app && !app.isPackaged) return "collab-dev";
+  if (app && !app.isPackaged) {
+    return DEV_WORKTREE_ID
+      ? `collab-dev-${DEV_WORKTREE_ID}`
+      : "collab-dev";
+  }
   return "collab";
 }
 
@@ -95,6 +99,30 @@ export function tmuxExec(...args: string[]): string {
       throw new Error(hint);
     }
     throw err;
+  }
+}
+
+export function tmuxHasSession(name: string): boolean {
+  try {
+    execFileSync(
+      getTmuxBin(),
+      [...baseArgs(), "has-session", "-t", name],
+      {
+        stdio: "ignore",
+        timeout: 5000,
+        env: tmuxEnv(),
+      },
+    );
+    return true;
+  } catch (err: unknown) {
+    if (isEnoent(err)) {
+      const app = getApp();
+      const hint = app?.isPackaged
+        ? "tmux is required for legacy session recovery in packaged builds. Install it and ensure it is on your PATH."
+        : "tmux is required for dev mode. Install it with: brew install tmux";
+      throw new Error(hint);
+    }
+    return false;
   }
 }
 

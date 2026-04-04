@@ -228,11 +228,11 @@ export interface CollabApi {
   ptyWrite: (
     sessionId: string,
     data: string,
-  ) => Promise<void>;
+  ) => void;
   ptySendRawKeys: (
     sessionId: string,
     data: string,
-  ) => Promise<void>;
+  ) => void;
   ptyResize: (
     sessionId: string,
     cols: number,
@@ -265,7 +265,6 @@ export interface CollabApi {
     target?: string;
     backend?: "tmux" | "sidecar";
   } | null>;
-  ptyCleanDetached: (activeSessionIds: string[]) => Promise<void>;
   notifyPtySessionId: (sessionId: string) => void;
   onPtyData: (sessionId: string, cb: PtyDataCb) => void;
   offPtyData: (sessionId: string, cb: PtyDataCb) => void;

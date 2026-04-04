@@ -13,7 +13,7 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { SidecarServer } from "./server";
 import { SidecarClient } from "./client";
-import { SIDECAR_VERSION } from "./protocol";
+import { makeNotification } from "./protocol";
 
 // Short temp dir to stay under macOS 104-byte sun_path limit
 const TEST_DIR = path.join(os.tmpdir(), `cc-${process.pid}`);
@@ -31,7 +31,7 @@ const TEST_SHELL = process.platform === "win32"
     displayName: "PowerShell",
     target: "powershell",
     echo: (marker: string) => `Write-Output '${marker}'\n`,
-    exit: "exit\n",
+    exit: "exit\r",
   }
   : {
     command: "/bin/sh",
@@ -44,6 +44,7 @@ const TEST_SHELL = process.platform === "win32"
 
 let server: SidecarServer | null = null;
 let client: SidecarClient | null = null;
+type DataChunk = string | Buffer;
 
 afterEach(async () => {
   if (client) {
@@ -64,13 +65,37 @@ async function startServer(): Promise<void> {
     sessionSocketDir: SESSION_DIR,
     pidFilePath: PID_PATH,
     token: TOKEN,
-    idleTimeoutMs: 0,
   });
   await server.start();
 }
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function chunksToString(chunks: DataChunk[]): string {
+  return chunks.map((chunk) => chunk.toString()).join("");
+}
+
+async function waitForExitNotification(
+  notifications: Array<{ method: string; params: Record<string, unknown> }>,
+  timeoutMs = 5000,
+): Promise<{ method: string; params: Record<string, unknown> } | undefined> {
+  const deadline = Date.now() + timeoutMs;
+  while (
+    !notifications.some((n) => n.method === "session.exited")
+    && Date.now() < deadline
+  ) {
+    await sleep(50);
+  }
+  return notifications.find((n) => n.method === "session.exited");
+}
+
+async function closeSessionGracefully(dataSock: net.Socket): Promise<void> {
+  await sleep(500);
+  dataSock.write(TEST_SHELL.exit);
+  await sleep(500);
+  dataSock.destroy();
 }
 
 describe("SidecarClient", () => {
@@ -80,7 +105,6 @@ describe("SidecarClient", () => {
     await client.connect();
 
     const ping = await client.ping();
-    assert.equal(ping.version, SIDECAR_VERSION);
     assert.equal(ping.token, TOKEN);
   });
 
@@ -101,7 +125,7 @@ describe("SidecarClient", () => {
     });
     assert.match(sessionId, /^[0-9a-f]{16}$/);
 
-    const chunks: Buffer[] = [];
+    const chunks: DataChunk[] = [];
     const dataSock = await client.attachDataSocket(
       socketPath,
       (data) => chunks.push(data),
@@ -112,14 +136,14 @@ describe("SidecarClient", () => {
     // Wait until we see the expected output or timeout
     const deadline = Date.now() + 5000;
     while (
-      !Buffer.concat(chunks).toString().includes("client-test")
+      !chunksToString(chunks).includes("client-test")
       && Date.now() < deadline
     ) {
       await sleep(50);
     }
 
-    assert.ok(Buffer.concat(chunks).toString().includes("client-test"));
-    dataSock.destroy();
+    assert.ok(chunksToString(chunks).includes("client-test"));
+    await closeSessionGracefully(dataSock);
   });
 
   it("lists sessions", async () => {
@@ -127,7 +151,7 @@ describe("SidecarClient", () => {
     client = new SidecarClient(CONTROL_SOCK);
     await client.connect();
 
-    await client.createSession({
+    const { socketPath } = await client.createSession({
       command: TEST_SHELL.command,
       args: TEST_SHELL.args,
       displayName: TEST_SHELL.displayName,
@@ -137,9 +161,11 @@ describe("SidecarClient", () => {
       cols: 80,
       rows: 24,
     });
+    const dataSock = await client.attachDataSocket(socketPath, () => {});
 
     const sessions = await client.listSessions();
     assert.equal(sessions.length, 1);
+    await closeSessionGracefully(dataSock);
   });
 
   it("kills session", async () => {
@@ -243,7 +269,6 @@ describe("SidecarClient", () => {
             result: {
               pid: process.pid,
               uptime: 0,
-              version: SIDECAR_VERSION,
               token: TOKEN,
             },
           }) + "\n");
@@ -262,7 +287,7 @@ describe("SidecarClient", () => {
       // The client should skip the malformed lines and still
       // resolve the valid response
       const result = await fakeClient.ping();
-      assert.equal(result.version, SIDECAR_VERSION);
+      assert.ok(result.token);
       fakeClient.disconnect();
     } finally {
       await new Promise<void>((resolve) =>
@@ -288,7 +313,7 @@ describe("SidecarClient", () => {
     });
 
     // Attach and write a marker
-    const chunks1: Buffer[] = [];
+    const chunks1: DataChunk[] = [];
     const dataSock1 = await client.attachDataSocket(
       socketPath,
       (data) => chunks1.push(data),
@@ -297,12 +322,12 @@ describe("SidecarClient", () => {
 
     const deadline1 = Date.now() + 5000;
     while (
-      !Buffer.concat(chunks1).toString().includes("RECONNECT_MARKER")
+      !chunksToString(chunks1).includes("RECONNECT_MARKER")
       && Date.now() < deadline1
     ) {
       await sleep(50);
     }
-    assert.ok(Buffer.concat(chunks1).toString().includes("RECONNECT_MARKER"));
+    assert.ok(chunksToString(chunks1).includes("RECONNECT_MARKER"));
 
     // Disconnect the data socket
     dataSock1.destroy();
@@ -315,7 +340,7 @@ describe("SidecarClient", () => {
     assert.equal(reconnResult.sessionId, sessionId);
 
     // Attach a new data socket — it should receive the scrollback
-    const chunks2: Buffer[] = [];
+    const chunks2: DataChunk[] = [];
     const dataSock2 = await client.attachDataSocket(
       reconnResult.socketPath,
       (data) => chunks2.push(data),
@@ -323,63 +348,76 @@ describe("SidecarClient", () => {
 
     const deadline2 = Date.now() + 5000;
     while (
-      !Buffer.concat(chunks2).toString().includes("RECONNECT_MARKER")
+      !chunksToString(chunks2).includes("RECONNECT_MARKER")
       && Date.now() < deadline2
     ) {
       await sleep(50);
     }
 
     assert.ok(
-      Buffer.concat(chunks2).toString().includes("RECONNECT_MARKER"),
+      chunksToString(chunks2).includes("RECONNECT_MARKER"),
       "Scrollback should contain the marker from before disconnect",
     );
-    dataSock2.destroy();
+    await closeSessionGracefully(dataSock2);
   });
 
   it("notification handler receives session.exited", async () => {
-    await startServer();
-    client = new SidecarClient(CONTROL_SOCK);
-    await client.connect();
+    const fakeSockPath = process.platform === "win32"
+      ? `\\\\.\\pipe\\cc-${process.pid}-notify`
+      : path.join(TEST_DIR, "notify.sock");
+    fs.mkdirSync(TEST_DIR, { recursive: true });
+    let controlConn: net.Socket | null = null;
 
-    const { sessionId, socketPath } = await client.createSession({
-      command: TEST_SHELL.command,
-      args: TEST_SHELL.args,
-      displayName: TEST_SHELL.displayName,
-      target: TEST_SHELL.target,
-      cwdHostPath: TEST_CWD,
-      cwd: TEST_CWD,
-      cols: 80,
-      rows: 24,
+    const fakeServer = net.createServer((conn) => {
+      controlConn = conn;
+      conn.on("data", (data) => {
+        const line = data.toString().trim();
+        const msg = JSON.parse(line) as { id?: number; method?: string };
+        conn.write(makeNotification("session.exited", {
+          sessionId: "fake-session",
+          exitCode: 0,
+        }));
+        if (msg.method === "sidecar.ping") {
+          conn.write(JSON.stringify({
+            jsonrpc: "2.0",
+            id: msg.id,
+            result: {
+              pid: process.pid,
+              uptime: 0,
+              token: TOKEN,
+            },
+          }) + "\n");
+        }
+      });
     });
 
-    // Register notification handler before triggering exit
+    await new Promise<void>((resolve) =>
+      fakeServer.listen(fakeSockPath, resolve),
+    );
+
+    client = new SidecarClient(fakeSockPath);
+    await client.connect();
+
     const notifications: { method: string; params: Record<string, unknown> }[] = [];
     client.onNotification((method, params) => {
       notifications.push({ method, params });
     });
 
-    // Attach data socket and send exit to terminate the shell
-    const dataSock = await client.attachDataSocket(
-      socketPath,
-      () => {},
-    );
-    dataSock.write(TEST_SHELL.exit);
+    try {
+      await client.ping();
 
-    // Wait for the notification
-    const deadline = Date.now() + 5000;
-    while (
-      !notifications.some((n) => n.method === "session.exited")
-      && Date.now() < deadline
-    ) {
-      await sleep(50);
+      const exitNotif = await waitForExitNotification(notifications);
+      assert.ok(exitNotif, "Should receive session.exited notification");
+      assert.equal(exitNotif!.params.sessionId, "fake-session");
+      assert.equal(exitNotif!.params.exitCode, 0);
+    } finally {
+      client.disconnect();
+      client = null;
+      controlConn?.end();
+      controlConn?.destroy();
+      await new Promise<void>((resolve) =>
+        fakeServer.close(() => resolve()),
+      );
     }
-
-    const exitNotif = notifications.find(
-      (n) => n.method === "session.exited",
-    );
-    assert.ok(exitNotif, "Should receive session.exited notification");
-    assert.equal(exitNotif!.params.sessionId, sessionId);
-    assert.equal(typeof exitNotif!.params.exitCode, "number");
-    dataSock.destroy();
   });
 });

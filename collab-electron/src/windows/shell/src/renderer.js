@@ -1222,12 +1222,10 @@ async function init() {
 			const escaped = filePaths.map(
 				(p) => "'" + p.replace(/'/g, "'\\''") + "'",
 			);
-			try {
-				await window.shellApi.ptyWrite(
-					targetTile.ptySessionId,
-					escaped.join(" "),
-				);
-			} catch { /* PTY may have exited */ }
+			window.shellApi.ptyWrite(
+				targetTile.ptySessionId,
+				escaped.join(" "),
+			);
 			tileManager.focusCanvasTile(targetTile.id);
 			return;
 		}
@@ -1269,17 +1267,7 @@ async function init() {
 		tileManager.restoreCanvasState(savedState.tiles);
 	}
 
-	// Kill tmux sessions that have no corresponding terminal tile
-	const activeSessionIds = [];
-	for (const [id] of tileManager.getTileDOMs()) {
-		const tile = getTile(id);
-		if (tile?.type === "term" && tile.ptySessionId) {
-			activeSessionIds.push(tile.ptySessionId);
-		}
-	}
-	window.shellApi.ptyCleanDetached?.(activeSessionIds);
-
-	// -- Initialize nav with all workspace paths --
+	// -- Initialize workspaces --
 
 	navWebview.send(
 		"workspace-init", workspaceData.workspaces,

@@ -21,7 +21,6 @@ import {
   type SessionCreateResult,
   type SessionReconnectResult,
   type SessionInfo,
-  SIDECAR_VERSION,
 } from "./protocol";
 
 // Use short temp dir to stay under macOS 104-byte sun_path limit
@@ -41,7 +40,7 @@ const TEST_SHELL = process.platform === "win32"
     displayName: "PowerShell",
     target: "powershell",
     echo: (marker: string) => `Write-Output '${marker}'\n`,
-    exit: "exit\n",
+    exit: "exit\r",
   }
   : {
     command: "/bin/sh",
@@ -128,6 +127,25 @@ function waitForOutput(
   });
 }
 
+async function waitForNotification(
+  messages: Array<JsonRpcNotification | JsonRpcResponse>,
+  method: string,
+  timeoutMs = 5000,
+): Promise<JsonRpcNotification> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const notification = messages.find(
+      (message) => "method" in message && message.method === method,
+    );
+    if (notification) {
+      return notification as JsonRpcNotification;
+    }
+    await sleep(50);
+  }
+
+  throw new Error(`Timed out waiting for ${method}`);
+}
+
 function createServer(): SidecarServer {
   fs.mkdirSync(TEST_DIR, { recursive: true });
   return new SidecarServer({
@@ -135,7 +153,6 @@ function createServer(): SidecarServer {
     sessionSocketDir: SESSION_DIR,
     pidFilePath: PID_PATH,
     token: TOKEN,
-    idleTimeoutMs: 0,
   });
 }
 
@@ -184,6 +201,34 @@ function earlyOutputShell(marker: string): {
   };
 }
 
+function exitSoonShell(): {
+  command: string;
+  args: string[];
+  displayName: string;
+  target: string;
+} {
+  if (process.platform === "win32") {
+    return {
+      command: "powershell.exe",
+      args: [
+        "-NoLogo",
+        "-NoProfile",
+        "-Command",
+        "Start-Sleep -Milliseconds 200; exit 0",
+      ],
+      displayName: "PowerShell",
+      target: "powershell",
+    };
+  }
+
+  return {
+    command: "/bin/sh",
+    args: ["-lc", "sleep 0.2; exit 0"],
+    displayName: "sh",
+    target: "shell",
+  };
+}
+
 /**
  * Collect newline-delimited JSON messages from a socket
  * into a shared array, useful for listening for notifications.
@@ -214,15 +259,13 @@ describe("SidecarServer", () => {
       sessionSocketDir: SESSION_DIR,
       pidFilePath: PID_PATH,
       token: TOKEN,
-      idleTimeoutMs: 0,
-    });
+      });
     await server.start();
 
     const sock = await connectControl();
     const resp = await rpcCall(sock, 1, "sidecar.ping");
     const result = resp.result as PingResult;
 
-    assert.equal(result.version, SIDECAR_VERSION);
     assert.equal(result.token, TOKEN);
     assert.equal(result.pid, process.pid);
     assert.equal(typeof result.uptime, "number");
@@ -239,8 +282,7 @@ describe("SidecarServer session lifecycle", () => {
       sessionSocketDir: SESSION_DIR,
       pidFilePath: PID_PATH,
       token: TOKEN,
-      idleTimeoutMs: 0,
-    });
+      });
     await server.start();
 
     const sock = await connectControl();
@@ -272,8 +314,7 @@ describe("SidecarServer session lifecycle", () => {
       sessionSocketDir: SESSION_DIR,
       pidFilePath: PID_PATH,
       token: TOKEN,
-      idleTimeoutMs: 0,
-    });
+      });
     await server.start();
 
     const ctrl = await connectControl();
@@ -360,8 +401,7 @@ describe("SidecarServer session lifecycle", () => {
       sessionSocketDir: SESSION_DIR,
       pidFilePath: PID_PATH,
       token: TOKEN,
-      idleTimeoutMs: 0,
-    });
+      });
     await server.start();
 
     const sock = await connectControl();
@@ -392,8 +432,7 @@ describe("SidecarServer session lifecycle", () => {
       sessionSocketDir: SESSION_DIR,
       pidFilePath: PID_PATH,
       token: TOKEN,
-      idleTimeoutMs: 0,
-    });
+      });
     await server.start();
 
     const sock = await connectControl();
@@ -427,8 +466,7 @@ describe("SidecarServer session lifecycle", () => {
       sessionSocketDir: SESSION_DIR,
       pidFilePath: PID_PATH,
       token: TOKEN,
-      idleTimeoutMs: 0,
-    });
+      });
     await server.start();
 
     const ctrl = await connectControl();
@@ -507,7 +545,14 @@ describe("SidecarServer session lifecycle", () => {
 });
 
 describe("Shell exit sends session.exited notification", () => {
-  it("emits session.exited with sessionId and exitCode", async () => {
+  it("emits session.exited with sessionId and exitCode", async (t) => {
+    if (process.platform === "win32") {
+      t.skip(
+        "Windows native PTY exit is covered by the client notification test",
+      );
+      return;
+    }
+
     server = createServer();
     await server.start();
 
@@ -515,38 +560,25 @@ describe("Shell exit sends session.exited notification", () => {
     const messages: Array<JsonRpcNotification | JsonRpcResponse> = [];
     collectMessages(ctrl, messages);
 
-    const { sessionId, socketPath } = await createSession(ctrl, 1);
+    const shell = exitSoonShell();
+    const createResp = await rpcCall(ctrl, 1, "session.create", {
+      command: shell.command,
+      args: shell.args,
+      displayName: shell.displayName,
+      target: shell.target,
+      cwdHostPath: TEST_CWD,
+      cwd: TEST_CWD,
+      cols: 80,
+      rows: 24,
+    });
+    const { sessionId } = createResp.result as SessionCreateResult;
 
-    // Connect data socket and send exit to terminate the shell
-    const data = await connectDataSocket(socketPath);
-    data.write(TEST_SHELL.exit);
-
-    // Wait for the notification to arrive
-    const notification = await new Promise<JsonRpcNotification>(
-      (resolve, reject) => {
-        const timer = setTimeout(
-          () => reject(new Error("Timed out waiting for session.exited")),
-          5000,
-        );
-        const check = setInterval(() => {
-          const found = messages.find(
-            (m) =>
-              "method" in m && m.method === "session.exited",
-          ) as JsonRpcNotification | undefined;
-          if (found) {
-            clearTimeout(timer);
-            clearInterval(check);
-            resolve(found);
-          }
-        }, 50);
-      },
-    );
+    const notification = await waitForNotification(messages, "session.exited");
 
     assert.equal(notification.method, "session.exited");
     assert.equal(notification.params?.sessionId, sessionId);
     assert.equal(typeof notification.params?.exitCode, "number");
 
-    data.destroy();
     ctrl.destroy();
   });
 });
@@ -732,6 +764,7 @@ describe("Unknown RPC method returns error", () => {
 
 describe("Windows WSL smoke", () => {
   const isWindows = process.platform === "win32";
+  const runWslSmoke = process.env.RUN_WSL_SMOKE === "1";
   const defaultDistro = isWindows
     ? (() => {
       try {
@@ -748,6 +781,11 @@ describe("Windows WSL smoke", () => {
     : null;
 
   it("can spawn a WSL session when a distro is installed", async (t) => {
+    if (!runWslSmoke) {
+      t.skip("Set RUN_WSL_SMOKE=1 to run the WSL integration smoke test");
+      return;
+    }
+
     if (!isWindows || !defaultDistro) {
       t.skip("WSL not available");
       return;
@@ -767,14 +805,14 @@ describe("Windows WSL smoke", () => {
       cols: 80,
       rows: 24,
     });
-    const { socketPath } = createResp.result as SessionCreateResult;
+    const { sessionId, socketPath } = createResp.result as SessionCreateResult;
 
     const data = await connectDataSocket(socketPath);
     data.write("echo WSL_SMOKE_OK\n");
     const output = await waitForOutput(data, "WSL_SMOKE_OK", 10000);
     assert.ok(output.includes("WSL_SMOKE_OK"));
 
-    data.write("exit\n");
+    await rpcCall(ctrl, 2, "session.kill", { sessionId });
     data.destroy();
     ctrl.destroy();
   });

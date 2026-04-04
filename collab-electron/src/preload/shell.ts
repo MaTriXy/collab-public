@@ -228,8 +228,9 @@ contextBridge.exposeInMainWorld("shellApi", {
   ptyKillSession: (sessionId: string): Promise<void> =>
     ipcRenderer.invoke("pty:kill", { sessionId }),
 
-  ptyWrite: (sessionId: string, data: string): Promise<void> =>
-    ipcRenderer.invoke("pty:write", { sessionId, data }),
+  ptyWrite: (sessionId: string, data: string): void => {
+    ipcRenderer.send("pty:write", { sessionId, data });
+  },
 
   ptyCapture: (
     sessionId: string, lines?: number,
@@ -261,6 +262,4 @@ contextBridge.exposeInMainWorld("shellApi", {
   },
 
   ptyDiscover: () => ipcRenderer.invoke("pty:discover"),
-  ptyCleanDetached: (activeSessionIds: string[]) =>
-    ipcRenderer.invoke("pty:clean-detached", activeSessionIds),
 });

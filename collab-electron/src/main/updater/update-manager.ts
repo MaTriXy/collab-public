@@ -37,12 +37,29 @@ const ERROR_RESET_DELAY_MS = 30_000;
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const INITIAL_CHECK_DELAY_MS = 5_000;
 
+function isMissingReleaseMetadataError(message: string): boolean {
+  if (process.platform !== "linux") {
+    return false;
+  }
+  return /Cannot find latest-linux\.yml in the latest release artifacts/i.test(
+    message,
+  );
+}
+
 class UpdateManager {
   private state: UpdateState = { status: "idle" };
   private initialized = false;
   private errorResetTimeout: NodeJS.Timeout | null = null;
   private checkInterval: NodeJS.Timeout | null = null;
   private onBeforeQuit: (() => Promise<void>) | null = null;
+
+  private shouldIgnoreMissingReleaseMetadataError(message: string): boolean {
+    if (!isMissingReleaseMetadataError(message)) {
+      return false;
+    }
+    this.setState({ status: "idle", error: undefined });
+    return true;
+  }
 
   init(opts?: { onBeforeQuit?: () => Promise<void> }): void {
     if (this.initialized) return;
@@ -63,7 +80,13 @@ class UpdateManager {
     autoUpdater.logger = {
       info: (msg: string) => console.log(`[updater] ${msg}`),
       warn: (msg: string) => console.warn(`[updater] ${msg}`),
-      error: (msg: string) => console.error(`[updater] ${msg}`),
+      error: (msg: string) => {
+        if (isMissingReleaseMetadataError(msg)) {
+          console.warn("[updater] Release metadata missing; skipping update check");
+          return;
+        }
+        console.error(`[updater] ${msg}`);
+      },
       debug: (msg: string) => console.debug(`[updater] ${msg}`),
     };
 
@@ -121,6 +144,9 @@ class UpdateManager {
     });
 
     autoUpdater.on("error", (err) => {
+      if (this.shouldIgnoreMissingReleaseMetadataError(err.message)) {
+        return;
+      }
       trackEvent("update_download_failed", { error: err.message });
       this.handleError(err.message);
     });
@@ -149,7 +175,11 @@ class UpdateManager {
     try {
       await autoUpdater.checkForUpdates();
     } catch (err) {
-      this.handleError((err as Error).message);
+      const message = (err as Error).message;
+      if (this.shouldIgnoreMissingReleaseMetadataError(message)) {
+        return;
+      }
+      this.handleError(message);
     }
   }
 

@@ -255,10 +255,12 @@ contextBridge.exposeInMainWorld("api", {
       "pty:create",
       { cwd, cols, rows, target, tileId },
     ),
-  ptyWrite: (sessionId: string, data: string) =>
-    ipcRenderer.invoke("pty:write", { sessionId, data }),
-  ptySendRawKeys: (sessionId: string, data: string) =>
-    ipcRenderer.invoke("pty:send-raw-keys", { sessionId, data }),
+  ptyWrite: (sessionId: string, data: string) => {
+    ipcRenderer.send("pty:write", { sessionId, data });
+  },
+  ptySendRawKeys: (sessionId: string, data: string) => {
+    ipcRenderer.send("pty:send-raw-keys", { sessionId, data });
+  },
   ptyResize: (
     sessionId: string,
     cols: number,
@@ -283,8 +285,6 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.invoke("pty:discover"),
   ptyReadMeta: (sessionId: string) =>
     ipcRenderer.invoke("pty:read-meta", sessionId),
-  ptyCleanDetached: (activeSessionIds: string[]) =>
-    ipcRenderer.invoke("pty:clean-detached", activeSessionIds),
   onPtyData: (sessionId: string, cb: PtyDataCallback) => {
     getOrCreateListenerSet(dataListeners, sessionId).add(cb);
     const buffered = bufferedPtyData.get(sessionId);

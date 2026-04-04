@@ -22,7 +22,13 @@ interface TerminalTabProps {
 	mode?: "tmux" | "sidecar";
 }
 
-function TerminalTab({ sessionId, visible, restored, scrollbackData, mode }: TerminalTabProps) {
+function TerminalTab({
+	sessionId,
+	visible,
+	restored,
+	scrollbackData,
+	mode,
+}: TerminalTabProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const fitRef = useRef<FitAddon | null>(null);
 
