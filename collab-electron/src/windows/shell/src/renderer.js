@@ -13,7 +13,7 @@ import { createPanel } from "./panel-manager.js";
 import { createWorkspaceManager } from "./workspace-manager.js";
 import { createCanvasRpc } from "./canvas-rpc.js";
 import { createTileManager } from "./tile-manager.js";
-import { updateTileTitle } from "./tile-renderer.js";
+import { updateTileTitle, getTileLabel } from "./tile-renderer.js";
 
 const CANVAS_DBLCLICK_SUPPRESS_MS = 500;
 const IS_WINDOWS = window.shellApi.getPlatform() === "win32";
@@ -301,7 +301,7 @@ async function init() {
 	function syncTerminalTileMeta(tile, meta) {
 		if (!meta) return;
 		tile.cwd = meta.cwdHostPath || meta.cwd || tile.cwd;
-		tile.displayName = meta.displayName || tile.displayName;
+		tile.autoTitle = meta.cwdHostPath || meta.cwd || tile.autoTitle;
 		const dom = tileManager.getTileDOMs().get(tile.id);
 		if (dom) {
 			updateTileTitle(dom, tile);
@@ -314,7 +314,10 @@ async function init() {
 		let status = null;
 
 		if (tile.type === "term") {
-			title = tile.displayName || "Terminal";
+			const label = getTileLabel(tile);
+			title = label.parent
+				? label.parent + label.name
+				: label.name;
 			description = tile.cwd || "~";
 			status = tile.ptySessionId ? "running" : "idle";
 		} else if (tile.type === "browser") {
