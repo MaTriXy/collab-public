@@ -570,6 +570,7 @@ export function createTileManager({
 			}
 		}
 		removeTile(id);
+		onReposition?.();
 		saveCanvasImmediate();
 	}
 

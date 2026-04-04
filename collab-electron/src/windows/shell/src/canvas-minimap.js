@@ -16,7 +16,7 @@ const TILE_COLORS = {
 
 const TILE_OPACITY = 0.8;
 const VP_BORDER_OPACITY = 0.55;
-const SCRIM_OPACITY = 0.18;
+const SCRIM_OPACITY = 0.35;
 
 export function createMinimap({ viewportEl, wrapperEl, viewportState, getTiles, viewport }) {
 	const canvasEl = viewportEl;
