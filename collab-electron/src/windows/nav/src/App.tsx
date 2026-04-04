@@ -685,15 +685,6 @@ export default function App() {
 
 	useEffect(() => {
 		const handler = (e: KeyboardEvent) => {
-			if (
-				(e.metaKey || e.ctrlKey) &&
-				e.key.toLowerCase() === 'k'
-			) {
-				e.preventDefault();
-				focusActiveSearch();
-				return;
-			}
-
 			const active = document.activeElement;
 			if (
 				active?.tagName === 'INPUT' ||
