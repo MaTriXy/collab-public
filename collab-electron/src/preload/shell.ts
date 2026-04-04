@@ -12,13 +12,12 @@ interface AllViewConfigs {
   terminalTile: ViewConfig;
   graphTile: ViewConfig;
   settings: ViewConfig;
-  terminalList: ViewConfig;
   tileList: ViewConfig;
 }
 
 const ALLOWED_PANELS = new Set([
   "nav", "viewer", "terminal", "terminalTile",
-  "graphTile", "settings", "terminal-list",
+  "graphTile", "settings", "tile-list",
 ]);
 
 // Buffer loading-done signal so it isn't lost if it arrives before
