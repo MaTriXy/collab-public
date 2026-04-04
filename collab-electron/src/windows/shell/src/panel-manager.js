@@ -1,12 +1,12 @@
 /**
  * Generic panel factory for left/right sidebar panels.
  *
- * @param {string} side - Panel identifier ("nav", "terminal")
+ * @param {string} side - Panel identifier ("nav", "agent")
  * @param {object} config
  * @param {HTMLElement} config.panel - The panel DOM element
  * @param {HTMLElement} config.resizeHandle - The resize drag handle
  * @param {HTMLElement} config.toggle - The toggle button
- * @param {string} config.label - Human-readable label ("Navigator", "Terminals")
+ * @param {string} config.label - Human-readable label ("Navigator", "Agent")
  * @param {number} config.defaultWidth - Default panel width in pixels
  * @param {1|-1} config.direction - Resize drag direction: 1=left panel, -1=right panel
  * @param {string[]} [config.validModes] - Ordered list of modes; first must be "closed", second is default open mode

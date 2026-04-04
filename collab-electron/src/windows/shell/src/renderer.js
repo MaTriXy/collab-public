@@ -220,8 +220,7 @@ async function init() {
 		const qs = params.toString();
 		const wv = document.createElement("webview");
 		wv.setAttribute(
-			"src",
-			qs ? `${termConfig.src}?${qs}` : termConfig.src,
+			"src", `${termConfig.src}?${qs}`,
 		);
 		wv.setAttribute("preload", termConfig.preload);
 		wv.setAttribute(
@@ -230,7 +229,15 @@ async function init() {
 		wv.style.flex = "1";
 		wv.style.border = "none";
 
+		let ready = false;
+		const pendingMessages = [];
+
 		wv.addEventListener("dom-ready", () => {
+			ready = true;
+			for (const [ch, args] of pendingMessages) {
+				wv.send(ch, ...args);
+			}
+			pendingMessages.length = 0;
 			if (agentPanel.isVisible()) {
 				wv.focus();
 				noteSurfaceFocus("agent");
@@ -259,7 +266,10 @@ async function init() {
 		panelAgent.appendChild(wv);
 		agentTermWebview = {
 			webview: wv,
-			send(ch, ...args) { wv.send(ch, ...args); },
+			send(ch, ...args) {
+				if (ready) wv.send(ch, ...args);
+				else pendingMessages.push([ch, args]);
+			},
 		};
 	}
 
@@ -276,6 +286,10 @@ async function init() {
 		onVisibilityChanged(visible) {
 			if (visible) {
 				ensureAgentTerminal();
+				if (agentTermWebview) {
+					agentTermWebview.webview.focus();
+					noteSurfaceFocus("agent");
+				}
 			}
 		},
 	});
