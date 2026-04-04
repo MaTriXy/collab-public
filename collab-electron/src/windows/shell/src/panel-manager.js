@@ -11,6 +11,7 @@
  * @param {1|-1} config.direction - Resize drag direction: 1=left panel, -1=right panel
  * @param {() => Array} [config.getAllWebviews] - Returns all webviews for pointer-event blocking during resize
  * @param {(visible: boolean) => void} [config.onVisibilityChanged] - Called when visibility changes
+ * @param {(mode: string) => void} [config.onModeChanged] - Called when mode changes
  */
 function getPanelConstraints(side) {
 	const s = getComputedStyle(document.documentElement);
@@ -29,9 +30,12 @@ export function createPanel(side, config) {
 		label, defaultWidth, direction,
 		getAllWebviews = () => [],
 		onVisibilityChanged = () => {},
+		onModeChanged = () => {},
 	} = config;
 
-	let visible = true;
+	let mode = "files";
+	let lastOpenMode = "files";
+	let width = defaultWidth;
 	const prefCache = {};
 
 	function savePref(key, value) {
@@ -52,7 +56,7 @@ export function createPanel(side, config) {
 
 		if (direction === 1) {
 			// Left panel: toggle sits right of the panel
-			if (visible) {
+			if (mode !== "closed") {
 				const rect = panel.getBoundingClientRect();
 				toggle.style.left = `${rect.right + 8}px`;
 			} else {
@@ -61,7 +65,7 @@ export function createPanel(side, config) {
 			toggle.style.right = "";
 		} else {
 			// Right panel: toggle sits left of the panel
-			if (visible) {
+			if (mode !== "closed") {
 				const rect = panel.getBoundingClientRect();
 				toggle.style.right =
 					`${panelsRect.right - rect.left + 8}px`;
@@ -75,6 +79,7 @@ export function createPanel(side, config) {
 	}
 
 	function applyVisibility() {
+		const visible = mode !== "closed";
 		if (visible) {
 			panel.style.display = "";
 			resizeHandle.style.display = "";
@@ -89,9 +94,9 @@ export function createPanel(side, config) {
 		toggle.setAttribute("aria-pressed", String(visible));
 		toggle.setAttribute(
 			"aria-label",
-			visible ? `Hide ${label}` : `Show ${label}`,
+			visible ? `Hide ${label} (${mode})` : `Show ${label}`,
 		);
-		toggle.title = visible ? `Hide ${label}` : `Show ${label}`;
+		toggle.title = visible ? `Hide ${label} (${mode})` : `Show ${label}`;
 		onVisibilityChanged(visible);
 		updateTogglePosition();
 	}
@@ -161,29 +166,64 @@ export function createPanel(side, config) {
 		});
 	}
 
-	function initPrefs(prefWidth, prefVisible) {
+	function initPrefs(prefWidth, prefMode) {
 		if (prefWidth != null) {
-			prefCache[`panel-width-${side}`] = prefWidth;
+			width = Number(prefWidth) || defaultWidth;
+			panel.style.flex = `0 0 ${width}px`;
 		}
-		if (prefVisible != null) {
-			prefCache[`panel-visible-${side}`] = prefVisible;
+		if (prefMode != null && ["closed", "files", "tiles"].includes(prefMode)) {
+			mode = prefMode;
+		} else {
+			mode = "files"; // default to files if no saved pref
 		}
-		const storedVisible = prefCache[`panel-visible-${side}`];
-		visible = storedVisible == null ? true : !!storedVisible;
+		applyVisibility();
 	}
 
 	return {
 		applyVisibility,
-		isVisible() { return visible; },
+		getMode() { return mode; },
+		isVisible() { return mode !== "closed"; },
 		toggle() {
-			visible = !visible;
-			savePref(`panel-visible-${side}`, visible);
+			if (mode === "closed") {
+				mode = lastOpenMode || "files";
+			} else {
+				lastOpenMode = mode;
+				mode = "closed";
+			}
+			savePref("sidebar-mode", mode);
 			applyVisibility();
+			onModeChanged(mode);
+		},
+		toggleFiles() {
+			if (mode === "files") mode = "closed";
+			else mode = "files";
+			savePref("sidebar-mode", mode);
+			applyVisibility();
+			onModeChanged(mode);
+		},
+		toggleTiles() {
+			if (mode === "tiles") mode = "closed";
+			else mode = "tiles";
+			savePref("sidebar-mode", mode);
+			applyVisibility();
+			onModeChanged(mode);
+		},
+		setMode(m) {
+			mode = m;
+			savePref("sidebar-mode", m);
+			applyVisibility();
+			onModeChanged(mode);
 		},
 		setVisible(v) {
-			visible = v;
-			savePref(`panel-visible-${side}`, visible);
+			if (v) {
+				mode = lastOpenMode || "files";
+			} else {
+				if (mode !== "closed") lastOpenMode = mode;
+				mode = "closed";
+			}
+			savePref("sidebar-mode", mode);
 			applyVisibility();
+			onModeChanged(mode);
 		},
 		updateTogglePosition,
 		setupResize,
