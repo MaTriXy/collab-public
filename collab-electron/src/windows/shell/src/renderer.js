@@ -73,11 +73,14 @@ async function init() {
 	const [
 		configs, workspaceData,
 		prefNavWidth, prefSidebarMode,
+		prefAgentWidth, prefAgentMode,
 	] = await Promise.all([
 		window.shellApi.getViewConfig(),
 		window.shellApi.workspaceList(),
 		window.shellApi.getPref("panel-width-nav"),
 		window.shellApi.getPref("sidebar-mode"),
+		window.shellApi.getPref("panel-width-agent"),
+		window.shellApi.getPref("sidebar-mode-agent"),
 	]);
 
 	// DOM elements
@@ -100,6 +103,9 @@ async function init() {
 	const loadingStatusEl =
 		document.getElementById("loading-status");
 	const tileLayer = document.getElementById("tile-layer");
+	const panelAgent = document.getElementById("panel-agent");
+	const agentResizeHandle = document.getElementById("agent-resize");
+	const agentToggle = document.getElementById("agent-toggle");
 
 	// -- State --
 
@@ -190,6 +196,29 @@ async function init() {
 		},
 	});
 	panelManager.initPrefs(prefNavWidth, prefSidebarMode);
+
+	function ensureAgentTerminal() {
+		// TODO: Task 6 — spawn agent terminal webview
+	}
+
+	const agentPanel = createPanel("agent", {
+		panel: panelAgent,
+		resizeHandle: agentResizeHandle,
+		toggle: agentToggle,
+		label: "Agent",
+		defaultWidth: 400,
+		direction: -1,
+		validModes: ["closed", "open"],
+		prefKey: "sidebar-mode-agent",
+		getAllWebviews,
+		onVisibilityChanged(visible) {
+			if (visible) {
+				ensureAgentTerminal();
+			}
+		},
+	});
+	agentPanel.initPrefs(prefAgentWidth, prefAgentMode);
+	agentPanel.setupResize();
 
 	function syncTerminalTileMeta(tile, meta) {
 		if (!meta) return;
