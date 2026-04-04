@@ -162,18 +162,26 @@ body.platform-win {
 	position: relative;
 	background: rgba(var(--canvas-bg-rgb), var(--canvas-opacity));
 	outline: none;
+}
+
+#panel-viewer::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	z-index: 104;
 	box-shadow: none;
 }
 
-#panel-viewer.nav-open {
+#panel-viewer.nav-open::after {
 	box-shadow: inset 8px 0 12px -6px rgba(0, 0, 0, 0.15);
 }
 
-#panel-viewer.agent-open {
+#panel-viewer.agent-open::after {
 	box-shadow: inset -8px 0 12px -6px rgba(0, 0, 0, 0.15);
 }
 
-#panel-viewer.nav-open.agent-open {
+#panel-viewer.nav-open.agent-open::after {
 	box-shadow:
 		inset 8px 0 12px -6px rgba(0, 0, 0, 0.15),
 		inset -8px 0 12px -6px rgba(0, 0, 0, 0.15);
