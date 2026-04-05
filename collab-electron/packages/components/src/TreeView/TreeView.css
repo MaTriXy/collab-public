@@ -66,8 +66,8 @@
 }
 
 .search-input::placeholder {
-	color: var(--color-text-secondary);
-	opacity: 0.25;
+	color: var(--muted-foreground);
+	opacity: 0.6;
 }
 
 .table-wrapper {
@@ -470,7 +470,7 @@
 	font-size: 0.7rem;
 	font-weight: 400;
 	color: var(--muted-foreground);
-	opacity: 0.6;
+	opacity: 0.8;
 	white-space: nowrap;
 	flex-shrink: 1;
 	overflow: hidden;
@@ -500,7 +500,7 @@
 	font-size: 0.7rem;
 	font-weight: 400;
 	color: var(--muted-foreground);
-	opacity: 0.6;
+	opacity: 0.8;
 	white-space: nowrap;
 	flex-shrink: 1;
 	overflow: hidden;
