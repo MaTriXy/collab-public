@@ -31,6 +31,7 @@ import {
   SIDECAR_SOCKET_PATH,
   SIDECAR_PID_PATH,
 } from "./sidecar/protocol";
+import { COLLAB_DIR } from "./paths";
 import { resolveTerminalTarget } from "./terminal-target";
 
 interface PtySession {
@@ -390,6 +391,50 @@ function attachClient(
   return ptyProcess;
 }
 
+const ZSH_INTEGRATION_DIR = path.join(COLLAB_DIR, "shell-integration", "zsh");
+
+function ensureZshIntegrationDir(): string | null {
+  try {
+    fs.mkdirSync(ZSH_INTEGRATION_DIR, { recursive: true });
+
+    fs.writeFileSync(
+      path.join(ZSH_INTEGRATION_DIR, ".zshenv"),
+      '[ -f "${_COLLAB_ZDOTDIR:-$HOME}/.zshenv" ] && '
+        + '. "${_COLLAB_ZDOTDIR:-$HOME}/.zshenv"\n',
+    );
+
+    fs.writeFileSync(
+      path.join(ZSH_INTEGRATION_DIR, ".zprofile"),
+      '[ -f "${_COLLAB_ZDOTDIR:-$HOME}/.zprofile" ] && '
+        + '. "${_COLLAB_ZDOTDIR:-$HOME}/.zprofile"\n',
+    );
+
+    fs.writeFileSync(
+      path.join(ZSH_INTEGRATION_DIR, ".zshrc"),
+      [
+        '_collab_zd="${_COLLAB_ZDOTDIR:-$HOME}"',
+        'ZDOTDIR="$_collab_zd"',
+        "unset _COLLAB_ZDOTDIR",
+        '[ -f "$_collab_zd/.zshrc" ] && . "$_collab_zd/.zshrc"',
+        "unset _collab_zd",
+        '__collab_osc7() { printf "\\e]7;file://%s%s\\a" "$HOST" "$PWD" }',
+        "precmd_functions+=(__collab_osc7)",
+        "",
+      ].join("\n"),
+    );
+
+    fs.writeFileSync(
+      path.join(ZSH_INTEGRATION_DIR, ".zlogin"),
+      '[ -f "${ZDOTDIR:-$HOME}/.zlogin" ] && '
+        + '. "${ZDOTDIR:-$HOME}/.zlogin"\n',
+    );
+
+    return ZSH_INTEGRATION_DIR;
+  } catch {
+    return null;
+  }
+}
+
 function osc7ShellHook(shell: string): string | null {
   const base = path.basename(shell);
   if (base === "zsh") {
@@ -451,6 +496,23 @@ export async function createSession(
     const sessionId = crypto.randomBytes(8).toString("hex");
     const name = tmuxSessionName(sessionId);
     const shellName = displayBasename(shell) || "shell";
+    const shellBase = path.basename(shell);
+
+    let zshIntegrated = false;
+    if (shellBase === "zsh") {
+      const dir = ensureZshIntegrationDir();
+      if (dir) {
+        const origZd = process.env.ZDOTDIR
+          || process.env.HOME || os.homedir();
+        try {
+          tmuxExec("set-environment", "-g", "ZDOTDIR", dir);
+          tmuxExec("set-environment", "-g", "_COLLAB_ZDOTDIR", origZd);
+          zshIntegrated = true;
+        } catch {
+          // Fall back to injection below
+        }
+      }
+    }
 
     tmuxExec(
       "new-session", "-d",
@@ -459,6 +521,15 @@ export async function createSession(
       "-x", String(c),
       "-y", String(r),
     );
+
+    if (zshIntegrated) {
+      try {
+        tmuxExec("set-environment", "-gu", "ZDOTDIR");
+        tmuxExec("set-environment", "-gu", "_COLLAB_ZDOTDIR");
+      } catch {
+        // Non-fatal cleanup
+      }
+    }
 
     tmuxExec("set-environment", "-t", name, "COLLAB_PTY_SESSION_ID", sessionId);
     if (tileId) {
@@ -479,7 +550,9 @@ export async function createSession(
     session.shell = shell;
     session.displayName = shellName;
 
-    injectOsc7Hook(sessionId, shell);
+    if (!zshIntegrated) {
+      injectOsc7Hook(sessionId, shell);
+    }
 
     return {
       sessionId,
@@ -501,6 +574,18 @@ export async function createSession(
   const client = getSidecarClient();
   const sidecarEnv = utf8Env();
   if (tileId) sidecarEnv.COLLAB_TILE_ID = tileId;
+
+  let zshIntegrated = false;
+  if (path.basename(resolvedTarget.command) === "zsh") {
+    const dir = ensureZshIntegrationDir();
+    if (dir) {
+      sidecarEnv._COLLAB_ZDOTDIR = process.env.ZDOTDIR
+        || process.env.HOME || os.homedir();
+      sidecarEnv.ZDOTDIR = dir;
+      zshIntegrated = true;
+    }
+  }
+
   const createParams = withOptionalFields({
     command: resolvedTarget.command,
     args: resolvedTarget.args,
@@ -547,7 +632,9 @@ export async function createSession(
     sidecarPowerShellSessionIds.add(sessionId);
   }
 
-  injectOsc7Hook(sessionId, resolvedTarget.command);
+  if (!zshIntegrated) {
+    injectOsc7Hook(sessionId, resolvedTarget.command);
+  }
 
   return withOptionalFields({
     sessionId,
