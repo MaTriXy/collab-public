@@ -642,6 +642,18 @@ body.platform-win {
 	opacity: 0.9;
 }
 
+#canvas-skill-install:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.canvas-skill-error {
+	color: #ef4444;
+	font-size: 12px;
+	margin: 8px 0 0;
+	padding: 0;
+}
+
 /* ── Panel toggle buttons ── */
 
 .panel-toggle {

@@ -71,6 +71,10 @@
 			{
 				"from": "cli/collab-cli.mjs",
 				"to": "collab-cli.mjs"
+			},
+			{
+				"from": "packages/collab-canvas-skill",
+				"to": "collab-canvas-skill"
 			}
 		],
 		"mac": {

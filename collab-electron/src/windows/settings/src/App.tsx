@@ -507,6 +507,7 @@ interface AgentStatus {
 function IntegrationsPane() {
   const [agents, setAgents] = useState<AgentStatus[]>([]);
   const [busy, setBusy] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     api.getAgents()
@@ -516,10 +517,16 @@ function IntegrationsPane() {
 
   async function toggle(agent: AgentStatus) {
     setBusy((s) => new Set(s).add(agent.id));
-    if (agent.installed) {
-      await api.uninstallSkill(agent.id);
-    } else {
-      await api.installSkill(agent.id);
+    setError(null);
+    try {
+      const result = agent.installed
+        ? await api.uninstallSkill(agent.id)
+        : await api.installSkill(agent.id);
+      if (result && !result.ok) {
+        setError(`${agent.name}: ${(result as { error?: string }).error ?? "Unknown error"}`);
+      }
+    } catch (err) {
+      setError(`${agent.name}: ${err instanceof Error ? err.message : String(err)}`);
     }
     const updated = await api.getAgents();
     setAgents(updated);
@@ -539,6 +546,10 @@ function IntegrationsPane() {
           the canvas from the terminal.
         </p>
       </div>
+
+      {error && (
+        <p className="text-xs" style={{ color: "#ef4444" }}>{error}</p>
+      )}
 
       <div className="space-y-1.5">
         {agents.map((agent) => (

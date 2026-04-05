@@ -1428,16 +1428,40 @@ async function checkFirstLaunchDialog() {
 		"click", closeDialog, { once: true },
 	);
 
-	installBtn.addEventListener("click", async () => {
+	installBtn.addEventListener("click", async function onInstall() {
+		installBtn.disabled = true;
+		installBtn.textContent = "Installing…";
+		// Clear previous error if retrying
+		dialog.querySelector(".canvas-skill-error")?.remove();
+		const errors = [];
 		for (const cb of checkboxes) {
 			if (cb.checked) {
-				await window.shellApi.installSkill(
-					cb.dataset.agentId,
-				);
+				try {
+					const result = await window.shellApi.installSkill(
+						cb.dataset.agentId,
+					);
+					if (result && !result.ok) {
+						errors.push(`${cb.dataset.agentId}: ${result.error}`);
+					}
+				} catch (err) {
+					errors.push(`${cb.dataset.agentId}: ${err.message || err}`);
+				}
 			}
 		}
+		if (errors.length > 0) {
+			installBtn.textContent = "Install";
+			installBtn.disabled = false;
+			const errEl = document.createElement("p");
+			errEl.className = "canvas-skill-error";
+			errEl.textContent =
+				`Install failed: ${errors.join("; ")}`;
+			dialog.querySelector("#canvas-skill-actions")
+				?.insertAdjacentElement("beforebegin", errEl);
+			return;
+		}
+		installBtn.removeEventListener("click", onInstall);
 		closeDialog();
-	}, { once: true });
+	});
 }
 
 init();
