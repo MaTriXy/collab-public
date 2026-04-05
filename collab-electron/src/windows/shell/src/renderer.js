@@ -1202,7 +1202,17 @@ async function init() {
 				const tileId = event.args[0];
 				const tile = getTile(tileId);
 				if (tile) {
-					edgeIndicators.panToTile(tile);
+					edgeIndicators.panToTile(
+						tile, { targetZoom: 1 },
+					);
+				}
+			} else if (event.channel === "tile-list:focus-tile") {
+				const tileId = event.args[0];
+				const tile = getTile(tileId);
+				if (tile) {
+					edgeIndicators.panToTile(
+						tile, { targetZoom: 1 },
+					);
 					tileManager.focusCanvasTile(tileId);
 				}
 			}

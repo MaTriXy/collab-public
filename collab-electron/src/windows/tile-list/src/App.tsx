@@ -41,15 +41,18 @@ function TileEntryRow({
   entry,
   focused,
   onClick,
+  onDoubleClick,
 }: {
   entry: TileEntry;
   focused: boolean;
   onClick: () => void;
+  onDoubleClick: () => void;
 }) {
   return (
     <div
       className={`tile-entry${focused ? " focused" : ""}`}
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
     >
       <div className="tile-icon">
         <span className="type-icon">{TYPE_ICONS[entry.type] || "\u25A1"}</span>
@@ -114,6 +117,11 @@ function App() {
     window.api.sendToHost("tile-list:peek-tile", id);
   }, []);
 
+  const handleDoubleClick = useCallback((id: string) => {
+    setFocusedId(id);
+    window.api.sendToHost("tile-list:focus-tile", id);
+  }, []);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
@@ -156,6 +164,7 @@ function App() {
           entry={entry}
           focused={entry.id === focusedId}
           onClick={() => handleClick(entry.id)}
+          onDoubleClick={() => handleDoubleClick(entry.id)}
         />
       ))}
       {filtered.length === 0 && (
