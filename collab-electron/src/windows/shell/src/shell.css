@@ -781,7 +781,7 @@ body.platform-win {
 	justify-content: space-between;
 	gap: 8px;
 	height: auto;
-	padding: 6px 8px;
+	padding: 8px 8px;
 	background: var(--bg);
 	border-bottom: none;
 	border-radius: 0;
@@ -795,9 +795,9 @@ body.platform-win {
 }
 
 .tile-title-text {
-	font-size: 12px;
+	font-size: 13px;
 	line-height: 1;
-	font-weight: 500;
+	font-weight: 400;
 	color: var(--fg);
 	overflow: hidden;
 	text-overflow: ellipsis;

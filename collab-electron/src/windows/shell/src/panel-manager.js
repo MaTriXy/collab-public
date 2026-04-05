@@ -232,6 +232,17 @@ export function createPanel(side, config) {
 			applyVisibility();
 			onModeChanged(mode);
 		},
+		toggleToMode(target) {
+			if (mode === target) {
+				lastOpenMode = mode;
+				mode = "closed";
+			} else {
+				mode = target;
+			}
+			savePref(prefKey, mode);
+			applyVisibility();
+			onModeChanged(mode);
+		},
 		updateTogglePosition,
 		setupResize,
 		savePref,

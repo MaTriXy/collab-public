@@ -376,10 +376,15 @@
 .collection-item-row {
 	border-right: 3px solid transparent;
 	font-size: 0.8rem;
+	color: color-mix(in srgb, var(--foreground) 80%, transparent);
 }
 
-.collection-item-row:hover .item-text {
-	font-weight: 600;
+.collection-item-row.isFocused {
+	color: var(--foreground);
+}
+
+.collection-item-row:hover {
+	background-color: color-mix(in srgb, var(--foreground) 6%, transparent);
 }
 
 .collection-item-row .item-text {
@@ -401,9 +406,6 @@
 	border-right-color: var(--color-primary);
 }
 
-.collection-item-row.isFocused .item-text {
-	font-weight: 600;
-}
 
 .collection-item-row.isMultiSelected {
 	background-color: var(--color-active);
@@ -515,10 +517,6 @@
 	flex-shrink: 0;
 }
 
-.collection-item-row:hover .search-result-name,
-.collection-item-row.isFocused .search-result-name {
-	font-weight: 600;
-}
 
 .search-no-matches {
 	font-family: var(--font-sans);

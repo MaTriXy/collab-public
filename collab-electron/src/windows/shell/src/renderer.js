@@ -966,10 +966,10 @@ async function init() {
 		}
 		if (action === "toggle-settings") {
 			window.shellApi.toggleSettings();
-		} else if (action === "toggle-agent") {
-			agentPanel.toggle();
-		} else if (action === "cycle-sidebar") {
-			panelManager.cycle();
+		} else if (action === "sidebar-files") {
+			panelManager.toggleToMode("files");
+		} else if (action === "sidebar-tiles") {
+			panelManager.toggleToMode("tiles");
 		} else if (action === "focus-file-search") {
 			panelManager.setMode("files");
 			focusSurface("nav");
