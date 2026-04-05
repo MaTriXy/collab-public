@@ -777,6 +777,7 @@ export default function App() {
 					workspacePaths.length > 0 && (
 					<TreeView
 						flatItems={flatItems}
+						workspaces={workspaces}
 						selectedPath={
 							selectedPath
 						}

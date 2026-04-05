@@ -20,7 +20,6 @@ import {
 	displayFileName,
 } from './Helpers';
 import {
-	displayBasename,
 	splitDisplayPath,
 } from '@collab/shared/path-utils';
 import type { SortMode } from './types';
@@ -32,20 +31,24 @@ import { useImageThumbnail } from './useImageThumbnail';
 const ICON_SIZE = 14;
 export const ENABLE_GRAPH_TILES = true;
 
-function flattenAllFiles(nodes: TreeNode[]): FlatItem[] {
+function flattenAllFiles(
+	nodes: TreeNode[],
+	workspacePath: string,
+): FlatItem[] {
 	const items: FlatItem[] = [];
+	const prefix = workspacePath.length + 1;
 	function walk(children: TreeNode[]) {
 		for (const node of children) {
 			if (node.kind === 'file') {
-				const fileName = displayBasename(node.path) || node.name;
 				items.push({
 					id: node.path,
 					kind: 'file',
-					level: 0,
-					name: fileName,
+					level: 1,
+					name: node.path.slice(prefix),
 					path: node.path,
 					ctime: node.ctime,
 					mtime: node.mtime,
+					workspacePath,
 				});
 			}
 			if (node.children) {
@@ -313,9 +316,15 @@ export const FileRow = React.memo(
 		onDragEnd,
 		sortMode,
 	}: FileRowProps) {
-		const { stem, ext } = displayFileName(
-			item.name,
-		);
+		const slash = item.name.lastIndexOf('/');
+		const isSearchResult = slash >= 0;
+		const fileName = isSearchResult
+			? item.name.slice(slash + 1)
+			: item.name;
+		const parentDir = isSearchResult
+			? item.name.slice(0, slash + 1)
+			: '';
+		const { stem, ext } = displayFileName(fileName);
 		const thumbnailUrl = useImageThumbnail(item.path, ICON_SIZE * 4);
 		const showTimestamp = !sortMode?.startsWith('alpha');
 
@@ -359,7 +368,7 @@ export const FileRow = React.memo(
 							alt=""
 						/>
 					) : (() => {
-						const { icon: IconComp, color } = getFileIcon(item.name);
+						const { icon: IconComp, color } = getFileIcon(fileName);
 						return (
 							<IconComp
 								size={ICON_SIZE}
@@ -389,6 +398,20 @@ export const FileRow = React.memo(
 						onBlur={onRenameConfirm}
 						onClick={(e) => e.stopPropagation()}
 					/>
+				) : isSearchResult ? (
+					<div className="search-result-label">
+						<span className="search-result-parent">
+							{parentDir}
+						</span>
+						<span className="search-result-name">
+							{stem}
+							{ext && (
+								<span style={{ opacity: 0.4 }}>
+									{ext}
+								</span>
+							)}
+						</span>
+					</div>
 				) : (
 					<span className="item-text">
 						{stem}
@@ -477,6 +500,7 @@ interface TreeViewProps {
 	) => void;
 	onDragEnd?: () => void;
 	workspacePath?: string;
+	workspaces?: { path: string; name: string }[];
 	cursorPath?: string | null;
 	onSelectFolder?: (path: string) => void;
 	isActive?: boolean;
@@ -512,6 +536,7 @@ export const TreeView: React.FC<
 	onDrop,
 	onDragEnd,
 	workspacePath,
+	workspaces,
 	cursorPath,
 	onSelectFolder,
 	isActive = true,
@@ -524,25 +549,102 @@ export const TreeView: React.FC<
 	const [allFiles, setAllFiles] = useState<FlatItem[] | null>(null);
 	const isSearching = searchQuery.trim().length > 0;
 
+	const workspacesKey =
+		workspaces?.map((ws) => ws.path).join('\0') ?? '';
+
 	useEffect(() => {
-		if (!isSearching || !workspacePath) {
+		setAllFiles(null);
+	}, [workspacesKey]);
+
+	useEffect(() => {
+		if (!isSearching || !workspaces?.length) {
 			setAllFiles(null);
 			return;
 		}
 		if (allFiles) return;
 		let cancelled = false;
-		window.api.readTree({ root: workspacePath }).then((tree: TreeNode[]) => {
+		Promise.all(
+			workspaces.map(async (ws) => {
+				const tree: TreeNode[] =
+					await window.api.readTree({
+						root: ws.path,
+					});
+				return {
+					ws,
+					files: flattenAllFiles(
+						tree,
+						ws.path,
+					),
+				};
+			}),
+		).then((results) => {
 			if (cancelled) return;
-			setAllFiles(flattenAllFiles(tree));
+			const items: FlatItem[] = [];
+			for (const { ws, files } of results) {
+				items.push({
+					id: `ws:${ws.path}`,
+					kind: 'workspace',
+					level: 0,
+					name: ws.name,
+					path: ws.path,
+					isExpanded: true,
+				});
+				items.push(...files);
+			}
+			setAllFiles(items);
 		});
-		return () => { cancelled = true; };
-	}, [isSearching, workspacePath, allFiles]);
+		return () => {
+			cancelled = true;
+		};
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- workspaces tracked via workspacesKey
+	}, [isSearching, workspacesKey, allFiles]);
 
 	const filteredItems = useMemo(() => {
 		if (!searchQuery.trim()) return flatItems;
 		const query = searchQuery.toLowerCase();
-		const source = allFiles ?? flatItems;
-		return source.filter((item) => {
+
+		if (allFiles) {
+			// Flat search: workspace headers + matching files
+			const result: FlatItem[] = [];
+			let currentWs: FlatItem | null = null;
+			const pending: FlatItem[] = [];
+
+			for (const item of allFiles) {
+				if (item.kind === 'workspace') {
+					if (currentWs) {
+						result.push(
+							currentWs,
+							...pending,
+						);
+					}
+					currentWs = item;
+					pending.length = 0;
+				} else if (item.kind === 'file') {
+					const slash =
+						item.name.lastIndexOf('/');
+					const fileName =
+						slash >= 0
+							? item.name.slice(
+									slash + 1,
+								)
+							: item.name;
+					if (
+						fileName
+							.toLowerCase()
+							.includes(query)
+					) {
+						pending.push(item);
+					}
+				}
+			}
+			if (currentWs) {
+				result.push(currentWs, ...pending);
+			}
+			return result;
+		}
+
+		// Fallback while full tree loads: filter visible items
+		return flatItems.filter((item) => {
 			if (item.kind === 'workspace') return true;
 			if (item.kind === 'folder') return true;
 			return item.name
@@ -551,31 +653,10 @@ export const TreeView: React.FC<
 		});
 	}, [flatItems, allFiles, searchQuery]);
 
-	const dimmedWorkspaces = useMemo(() => {
-		if (!searchQuery.trim()) return new Set<string>();
-		const query = searchQuery.toLowerCase();
-		const source = allFiles ?? flatItems;
-		const withMatches = new Set<string>();
-		for (const item of source) {
-			if (
-				item.kind === 'file' &&
-				item.workspacePath &&
-				item.name.toLowerCase().includes(query)
-			) {
-				withMatches.add(item.workspacePath);
-			}
-		}
-		const dimmed = new Set<string>();
-		for (const item of source) {
-			if (
-				item.kind === 'workspace' &&
-				!withMatches.has(item.path)
-			) {
-				dimmed.add(item.path);
-			}
-		}
-		return dimmed;
-	}, [flatItems, allFiles, searchQuery]);
+	const dimmedWorkspaces = useMemo(
+		() => new Set<string>(),
+		[],
+	);
 
 	const deleteConfirmRef = useRef(deleteConfirmId);
 	deleteConfirmRef.current = deleteConfirmId;
@@ -858,6 +939,11 @@ export const TreeView: React.FC<
 								dimmed={isDimmed}
 							/>
 							{children}
+							{isSearching && children.length === 0 && (
+								<div className="search-no-matches">
+									No matching files
+								</div>
+							)}
 						</div>,
 					);
 					i = nextI;

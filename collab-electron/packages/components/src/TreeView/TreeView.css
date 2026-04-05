@@ -445,8 +445,8 @@
 }
 
 .workspace-folder-row {
-	padding-top: 6px;
-	padding-bottom: 4px;
+	padding-top: 5px;
+	padding-bottom: 5px;
 	user-select: none;
 }
 
@@ -484,6 +484,49 @@
 	color: var(--foreground);
 	white-space: nowrap;
 	flex-shrink: 0;
+}
+
+/* Search result file rows: parent dir shrinks, filename stays visible */
+.search-result-label {
+	display: flex;
+	align-items: baseline;
+	min-width: 0;
+	overflow: hidden;
+	flex: 1;
+}
+
+.search-result-parent {
+	font-family: var(--font-mono);
+	font-size: 0.7rem;
+	font-weight: 400;
+	color: var(--muted-foreground);
+	opacity: 0.6;
+	white-space: nowrap;
+	flex-shrink: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.search-result-name {
+	font-family: var(--font-mono);
+	font-size: 0.8rem;
+	font-weight: 400;
+	color: var(--foreground);
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+.collection-item-row:hover .search-result-name,
+.collection-item-row.isFocused .search-result-name {
+	font-weight: 600;
+}
+
+.search-no-matches {
+	font-family: var(--font-mono);
+	font-size: 0.75rem;
+	color: var(--muted-foreground);
+	opacity: 0.5;
+	padding: 4px 4px 4px 18px;
 }
 
 /* Inline rename input */
