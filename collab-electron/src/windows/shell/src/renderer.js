@@ -27,6 +27,13 @@ canvasEl.tabIndex = -1;
 document.documentElement.classList.toggle("platform-win", IS_WINDOWS);
 document.body.classList.toggle("platform-win", IS_WINDOWS);
 
+// -- Alpha banner dismiss --
+
+document.getElementById("alpha-dismiss").addEventListener("click", (e) => {
+	e.preventDefault();
+	document.getElementById("alpha-label").hidden = true;
+});
+
 // -- Dark mode --
 
 initDarkMode(() => viewport.updateCanvas());
