@@ -847,6 +847,17 @@ export default function App() {
 						}
 						isActive
 						searchRef={treeSearchRef}
+						headerActions={
+							<div className="workspace-add-row">
+								<button
+									type="button"
+									className="ws-add-btn"
+									onClick={() => window.api.workspaceAdd()}
+								>
+									+ Add workspace
+								</button>
+							</div>
+						}
 					/>
 				)}
 

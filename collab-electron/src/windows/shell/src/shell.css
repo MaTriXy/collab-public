@@ -345,42 +345,6 @@ body.platform-win {
 	background: color-mix(in srgb, var(--destructive, #e5484d) 10%, transparent);
 }
 
-/* ── Add workspace button ── */
-
-#workspace-add-row {
-	position: relative;
-	z-index: 600;
-	padding: 0 12px 8px;
-}
-
-#ws-add-btn {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 100%;
-	font-family: var(--font-mono);
-	font-size: 12px;
-	font-weight: 500;
-	gap: 4px;
-	color: var(--muted);
-	background: none;
-	border: 1px dashed color-mix(in srgb, var(--fg) 20%, var(--border));
-	border-radius: 6px;
-	padding: 4px 8px;
-	cursor: pointer;
-	line-height: 1.4;
-	transition: color 0.15s ease, border-color 0.15s ease;
-}
-
-#ws-add-btn:hover {
-	color: var(--fg);
-	border-color: var(--fg);
-}
-
-#ws-add-btn:active {
-	transform: scale(0.97);
-}
-
 /* ── Resize ── */
 
 .resize-handle {

@@ -98,7 +98,6 @@ async function init() {
 	const panelViewer = document.getElementById("panel-viewer");
 	const navResizeHandle = document.getElementById("nav-resize");
 	const navToggle = document.getElementById("nav-toggle");
-	const wsAddBtn = document.getElementById("ws-add-btn"); // may be null if workspace UI removed
 	const settingsOverlay =
 		document.getElementById("settings-overlay");
 	const settingsBackdrop =
@@ -383,17 +382,11 @@ async function init() {
 		tileListContainer, handleDndMessage,
 	);
 
-	const wsAddRow = document.getElementById("workspace-add-row");
-
 	function updateSidebarContent(mode) {
 		navContainer.style.display =
 			mode === "files" ? "flex" : "none";
 		tileListContainer.style.display =
 			mode === "tiles" ? "flex" : "none";
-		if (wsAddRow) {
-			wsAddRow.style.display =
-				mode === "files" ? "" : "none";
-		}
 	}
 	updateSidebarContent(panelManager.getMode());
 
@@ -671,7 +664,6 @@ async function init() {
 		panelsEl.inert = inert;
 		navToggle.inert = inert;
 		agentToggle.inert = inert;
-		if (wsAddBtn) wsAddBtn.inert = inert;
 	}
 
 	function blurNonModalSurfaces() {
@@ -778,15 +770,6 @@ async function init() {
 			minimap.update();
 		}
 	});
-
-	// -- Add workspace button --
-
-	if (wsAddBtn) {
-		wsAddBtn.addEventListener("click", async () => {
-			const result = await window.shellApi.workspaceAdd();
-			// Nav webview handles the update via workspace-added IPC
-		});
-	}
 
 	document.addEventListener("focusin", (event) => {
 		if (!settingsModalOpen) return;
@@ -981,7 +964,7 @@ async function init() {
 				tileListWebview.send("focus-search");
 			});
 		} else if (action === "add-workspace") {
-			if (wsAddBtn) wsAddBtn.click();
+			window.shellApi.workspaceAdd();
 		} else if (action === "new-tile") {
 			const rect = canvasEl.getBoundingClientRect();
 			const size = defaultSize("term");

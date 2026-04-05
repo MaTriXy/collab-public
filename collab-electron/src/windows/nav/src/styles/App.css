@@ -127,6 +127,40 @@ button {
 	background: var(--scrollbar-thumb-hover);
 }
 
+/* Add workspace button */
+.workspace-add-row {
+	padding: 0 6px 8px 0;
+	flex-shrink: 0;
+}
+
+.ws-add-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	font-family: var(--font-mono);
+	font-size: 12px;
+	font-weight: 500;
+	gap: 4px;
+	color: var(--muted-foreground);
+	background: none;
+	border: 1px dashed color-mix(in srgb, var(--foreground) 20%, var(--border, #555));
+	border-radius: 6px;
+	padding: 4px 8px;
+	cursor: pointer;
+	line-height: 1.4;
+	transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.ws-add-btn:hover {
+	color: var(--foreground);
+	border-color: var(--foreground);
+}
+
+.ws-add-btn:active {
+	transform: scale(0.97);
+}
+
 /* Create Item Modal */
 .create-item-modal-overlay {
 	position: fixed;

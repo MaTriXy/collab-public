@@ -343,6 +343,7 @@ contextBridge.exposeInMainWorld("api", {
   },
 
   // Workspace management
+  workspaceAdd: () => ipcRenderer.invoke("workspace:add"),
   workspaceRemoveByPath: (path: string) =>
     ipcRenderer.invoke("workspace:remove-by-path", path),
 

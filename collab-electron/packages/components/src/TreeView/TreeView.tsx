@@ -481,6 +481,7 @@ interface TreeViewProps {
 	onSelectFolder?: (path: string) => void;
 	isActive?: boolean;
 	searchRef?: React.RefObject<SearchSortControlsHandle | null>;
+	headerActions?: React.ReactNode;
 }
 
 export const TreeView: React.FC<
@@ -515,6 +516,7 @@ export const TreeView: React.FC<
 	onSelectFolder,
 	isActive = true,
 	searchRef,
+	headerActions,
 }) => {
 	const [searchQuery, setSearchQuery] = useState('');
 	const [deleteConfirmId, setDeleteConfirmId] =
@@ -1113,6 +1115,7 @@ export const TreeView: React.FC<
 				searchPlaceholder="Search  ⌘K"
 				onArrowNav={navigateItems}
 			/>
+			{headerActions}
 			<div className="table-wrapper">
 				<div
 					ref={containerRef}
