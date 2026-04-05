@@ -864,7 +864,7 @@ body.platform-win {
 }
 
 .canvas-tile[data-tile-type="term"] {
-	background: transparent;
+	background: rgba(var(--bg-rgb), 0.2);
 }
 
 .canvas-tile[data-tile-type="term"] .tile-title-bar {
@@ -873,7 +873,7 @@ body.platform-win {
 }
 
 .dark .canvas-tile[data-tile-type="term"] {
-	background: transparent;
+	background: rgba(var(--bg-rgb), 0.2);
 }
 
 .dark .canvas-tile[data-tile-type="term"] .tile-title-bar {
