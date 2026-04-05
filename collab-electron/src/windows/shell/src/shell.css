@@ -636,7 +636,7 @@ body.platform-win {
 	z-index: 105;
 	background: rgba(140, 140, 140, 0.25);
 	border: none;
-	border-radius: 6px;
+	border-radius: 4px;
 	backdrop-filter: blur(8px);
 	opacity: 0;
 	transition: opacity 150ms ease;
@@ -656,7 +656,7 @@ body.platform-win {
 	width: 100%;
 	height: 100%;
 	display: block;
-	border-radius: 5px;
+	border-radius: 3px;
 }
 
 /* ── Edge indicators ── */

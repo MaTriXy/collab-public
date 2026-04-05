@@ -14,7 +14,7 @@ const TILE_COLORS = {
 	graph: "#a855f7",
 };
 
-const TILE_OPACITY = 0.8;
+const TILE_OPACITY = 0.6;
 const VP_BORDER_OPACITY = 0.55;
 const SCRIM_OPACITY = 0.35;
 
@@ -104,7 +104,6 @@ export function createMinimap({ viewportEl, wrapperEl, viewportState, getTiles, 
 
 	function drawRoundRect(x, y, w, h, r) {
 		r = Math.min(r, w / 2, h / 2);
-		ctx.beginPath();
 		ctx.moveTo(x + r, y);
 		ctx.lineTo(x + w - r, y);
 		ctx.arcTo(x + w, y, x + w, y + r, r);
@@ -137,8 +136,8 @@ export function createMinimap({ viewportEl, wrapperEl, viewportState, getTiles, 
 			const hex = TILE_COLORS[tile.type] || "#888888";
 			ctx.globalAlpha = TILE_OPACITY;
 			ctx.fillStyle = hex;
-			drawRoundRect(pos.x, pos.y, w, h, 1.5);
-			ctx.fill();
+			const gap = 0.5;
+			ctx.fillRect(pos.x + gap, pos.y + gap, w - gap * 2, h - gap * 2);
 		}
 
 		const zoom = viewportState.zoom;
@@ -159,21 +158,26 @@ export function createMinimap({ viewportEl, wrapperEl, viewportState, getTiles, 
 		if (vpX + vpW > MINIMAP_W) vpW = MINIMAP_W - vpX;
 		if (vpY + vpH > MINIMAP_H) vpH = MINIMAP_H - vpY;
 
-		if (vpW <= 0 || vpH <= 0) return;
-
 		const isDark = document.documentElement.classList.contains("dark");
+		const vpVisible = vpW > 0 && vpH > 0;
 
 		ctx.globalAlpha = SCRIM_OPACITY;
 		ctx.fillStyle = isDark ? "#000000" : "#ffffff";
 		ctx.beginPath();
 		ctx.rect(0, 0, MINIMAP_W, MINIMAP_H);
-		ctx.rect(vpX, vpY, vpW, vpH);
+		if (vpVisible) {
+			drawRoundRect(vpX, vpY, vpW, vpH, 4);
+		}
 		ctx.fill("evenodd");
 
-		ctx.globalAlpha = VP_BORDER_OPACITY;
-		ctx.strokeStyle = isDark ? "#ffffff" : "#000000";
-		ctx.lineWidth = 1.5;
-		ctx.strokeRect(vpX, vpY, vpW, vpH);
+		if (vpVisible) {
+			ctx.globalAlpha = VP_BORDER_OPACITY;
+			ctx.strokeStyle = isDark ? "#ffffff" : "#000000";
+			ctx.lineWidth = 1;
+			ctx.beginPath();
+			drawRoundRect(vpX, vpY, vpW, vpH, 4);
+			ctx.stroke();
+		}
 
 		ctx.globalAlpha = 1;
 	}
