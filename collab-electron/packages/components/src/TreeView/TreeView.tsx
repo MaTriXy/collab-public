@@ -13,6 +13,7 @@ import {
 	Plus,
 	Graph,
 } from '@phosphor-icons/react';
+import { Tooltip } from '../Tooltip';
 import type { FlatItem } from './useFileTree';
 import type { TreeNode } from '@collab/shared/types';
 import {
@@ -190,45 +191,48 @@ const FolderRow = React.memo(function FolderRow({
 					{item.childCount}
 				</span>
 			)}
-			<button
-				className="folder-action-button"
-				title="Add to folder"
-				onClick={(e) => {
-					e.stopPropagation();
-					if (onPlusClick) {
-						onPlusClick(item.path);
-					} else {
-						onCreateFile(item.path, '');
-					}
-				}}
-			>
-				<Plus size={12} weight="bold" />
-			</button>
-			<button
-				className="folder-action-button"
-				title="Open in Terminal"
-				onClick={(e) => {
-					e.stopPropagation();
-					window.api.openInTerminal(
-						item.path,
-					);
-				}}
-			>
-				<Terminal size={12} weight="bold" />
-			</button>
-			{ENABLE_GRAPH_TILES && (
+			<Tooltip label="New note">
 				<button
 					className="folder-action-button"
-					title="Open graph view"
 					onClick={(e) => {
 						e.stopPropagation();
-						if (typeof window.api.createGraphTile === "function") {
-							window.api.createGraphTile(item.path);
+						if (onPlusClick) {
+							onPlusClick(item.path);
+						} else {
+							onCreateFile(item.path, '');
 						}
 					}}
 				>
-					<Graph size={12} weight="bold" />
+					<Plus size={12} weight="bold" />
 				</button>
+			</Tooltip>
+			<Tooltip label="Open in terminal">
+				<button
+					className="folder-action-button"
+					onClick={(e) => {
+						e.stopPropagation();
+						window.api.openInTerminal(
+							item.path,
+						);
+					}}
+				>
+					<Terminal size={12} weight="bold" />
+				</button>
+			</Tooltip>
+			{ENABLE_GRAPH_TILES && (
+				<Tooltip label="Open graph view">
+					<button
+						className="folder-action-button"
+						onClick={(e) => {
+							e.stopPropagation();
+							if (typeof window.api.createGraphTile === "function") {
+								window.api.createGraphTile(item.path);
+							}
+						}}
+					>
+						<Graph size={12} weight="bold" />
+					</button>
+				</Tooltip>
 			)}
 		</div>
 	);

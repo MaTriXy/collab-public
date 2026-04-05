@@ -1,0 +1,14 @@
+.tooltip {
+	z-index: 1000;
+	pointer-events: none;
+	white-space: nowrap;
+	background: var(--card);
+	color: var(--card-foreground);
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	padding: 6px 10px;
+	font-family: var(--font-sans);
+	font-size: 11px;
+	line-height: 1.4;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
