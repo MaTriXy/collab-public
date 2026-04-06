@@ -58,7 +58,7 @@ window.shellApi.onPrefChanged((key, value) => {
 
 // -- Viewport --
 
-const viewport = createViewport(canvasEl, gridCanvas);
+const viewport = createViewport(canvasEl, gridCanvas, tiles);
 
 /** Convert in-memory panX/panY state to a center-point for persistence. */
 function toCenterPointState(state) {
@@ -504,7 +504,7 @@ async function init() {
 		tileLayer, viewportState, configs,
 		getAllWebviews,
 		isSpaceHeld: () => spaceHeld,
-		onReposition: () => minimapRef?.update(),
+		onReposition: () => { viewport.redrawGrid(); minimapRef?.update(); },
 		onSaveDebounced(state) {
 			window.shellApi.canvasSaveState(
 				toCenterPointState(state),
@@ -1534,6 +1534,7 @@ async function init() {
 			: 0;
 		viewport.updateCanvas();
 		tileManager.restoreCanvasState(savedState.tiles);
+		viewport.redrawGrid();
 		minimap.update();
 
 		// Batch-sync metadata for restored terminal tiles
