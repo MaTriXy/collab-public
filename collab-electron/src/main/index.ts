@@ -182,20 +182,19 @@ interface ShortcutEntry {
   action: string;
 }
 
-const TOGGLE_SHORTCUTS: Record<string, ShortcutEntry> = {
-  Backslash: { modifier: cmdOrCtrl, action: "sidebar-files" },
-  Backquote: { modifier: cmdOrCtrl, action: "sidebar-tiles" },
-  Comma: { modifier: cmdOrCtrl, action: "toggle-settings" },
-  KeyO: { modifier: shiftCmdOrCtrl, action: "add-workspace" },
-  KeyK: { modifier: cmdOrCtrl, action: "focus-file-search" },
-  KeyB: { modifier: altCmdOrCtrl, action: "toggle-agent" },
-  KeyN: { modifier: cmdOrCtrl, action: "new-tile" },
-  KeyW: { modifier: cmdOrCtrl, action: "close-tile" },
+const TOGGLE_SHORTCUTS: Record<string, ShortcutEntry[]> = {
+  KeyB: [
+    { modifier: altCmdOrCtrl, action: "toggle-agent" },
+    { modifier: cmdOrCtrl, action: "sidebar-files" },
+  ],
+  Comma: [{ modifier: cmdOrCtrl, action: "toggle-settings" }],
+  KeyO: [{ modifier: shiftCmdOrCtrl, action: "add-workspace" }],
+  KeyK: [{ modifier: cmdOrCtrl, action: "focus-file-search" }],
+  KeyN: [{ modifier: cmdOrCtrl, action: "new-tile" }],
+  KeyW: [{ modifier: cmdOrCtrl, action: "close-tile" }],
 };
 
-const TOGGLE_SHORTCUT_KEYS: Record<string, ShortcutEntry> = {
-  "\\": TOGGLE_SHORTCUTS.Backslash!,
-  "`": TOGGLE_SHORTCUTS.Backquote!,
+const TOGGLE_SHORTCUT_KEYS: Record<string, ShortcutEntry[]> = {
   ",": TOGGLE_SHORTCUTS.Comma!,
   o: TOGGLE_SHORTCUTS.KeyO!,
   k: TOGGLE_SHORTCUTS.KeyK!,
@@ -212,12 +211,11 @@ function normalizeShortcutKey(key: string | undefined): string | null {
 function resolveToggleShortcut(
   input: Electron.Input,
 ): ShortcutEntry | undefined {
-  const shortcut = TOGGLE_SHORTCUTS[input.code];
-  if (shortcut) return shortcut;
-  const normalizedKey = normalizeShortcutKey(input.key);
-  return normalizedKey
-    ? TOGGLE_SHORTCUT_KEYS[normalizedKey]
-    : undefined;
+  const candidates = TOGGLE_SHORTCUTS[input.code]
+    ?? (normalizeShortcutKey(input.key)
+      ? TOGGLE_SHORTCUT_KEYS[normalizeShortcutKey(input.key)!]
+      : undefined);
+  return candidates?.find((s) => s.modifier(input));
 }
 
 function attachShortcutListener(target: WebContents): void {
@@ -225,7 +223,7 @@ function attachShortcutListener(target: WebContents): void {
     if (input.type !== "keyDown") return;
 
     const toggle = resolveToggleShortcut(input);
-    if (toggle && toggle.modifier(input)) {
+    if (toggle) {
       event.preventDefault();
       if (!input.isAutoRepeat) sendShortcut(toggle.action);
     }
@@ -378,15 +376,9 @@ function buildAppMenu(): void {
       submenu: [
         {
           label: "Toggle Files",
-          accelerator: "CommandOrControl+\\",
+          accelerator: "CommandOrControl+B",
           registerAccelerator: false,
           click: () => sendShortcut("sidebar-files"),
-        },
-        {
-          label: "Toggle Tiles",
-          accelerator: "CommandOrControl+`",
-          registerAccelerator: false,
-          click: () => sendShortcut("sidebar-tiles"),
         },
         {
           label: "Toggle Agent",
