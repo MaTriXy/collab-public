@@ -13,6 +13,7 @@ import {
 import type { WorkspaceFileTreeHandle } from './useWorkspaceFileTree';
 import type { FlatItem } from './useFileTree';
 import type { SortMode } from './types';
+import { getDateKey, formatDateLabel } from './Helpers';
 import { TreeView } from './TreeView';
 import { FolderRow } from './TreeView';
 
@@ -165,13 +166,13 @@ export const WorkspaceTree = forwardRef<
 		(searchQuery ?? '').trim().length > 0;
 	const needsAllFiles = isSearching || flatView;
 
-	// FS変更時にキャッシュを無効化して再取得させる
+	// Invalidate allFiles cache when FS changes are detected
 	const flatItemsGeneration = flatItems.length;
 	useEffect(() => {
 		if (needsAllFiles) {
 			setAllFiles(null);
 		}
-	// eslint-disable-next-line react-hooks/exhaustive-deps -- flatItemsの変化でキャッシュを破棄
+	// eslint-disable-next-line react-hooks/exhaustive-deps -- invalidate cache on flatItems change
 	}, [flatItemsGeneration]);
 
 	useEffect(() => {
@@ -217,7 +218,9 @@ export const WorkspaceTree = forwardRef<
 				return fileName.includes(query);
 			});
 		}
-		// sortModeに従ってソート
+		// Sort by current sortMode
+		const toTime = (v?: string | number): number =>
+			typeof v === 'number' ? v : v ? new Date(v).getTime() : 0;
 		const cmp = (a: FlatItem, b: FlatItem) => {
 			switch (sortMode) {
 				case 'alpha-asc':
@@ -225,13 +228,13 @@ export const WorkspaceTree = forwardRef<
 				case 'alpha-desc':
 					return b.name.localeCompare(a.name);
 				case 'created-desc':
-					return (b.ctime ?? 0) - (a.ctime ?? 0);
+					return toTime(b.ctime) - toTime(a.ctime);
 				case 'created-asc':
-					return (a.ctime ?? 0) - (b.ctime ?? 0);
+					return toTime(a.ctime) - toTime(b.ctime);
 				case 'modified-desc':
-					return (b.mtime ?? 0) - (a.mtime ?? 0);
+					return toTime(b.mtime) - toTime(a.mtime);
 				case 'modified-asc':
-					return (a.mtime ?? 0) - (b.mtime ?? 0);
+					return toTime(a.mtime) - toTime(b.mtime);
 				default:
 					return 0;
 			}
@@ -244,7 +247,7 @@ export const WorkspaceTree = forwardRef<
 		() => ({
 			flatItems,
 			navigableItems:
-				isSearching ? filteredItems : navigableItems,
+				(isSearching || flatView) ? filteredItems : navigableItems,
 			expandAncestors,
 			expandRecursive,
 			collapseAllDirs,
@@ -253,12 +256,51 @@ export const WorkspaceTree = forwardRef<
 			flatItems,
 			navigableItems,
 			isSearching,
+			flatView,
 			filteredItems,
 			expandAncestors,
 			expandRecursive,
 			collapseAllDirs,
 		],
 	);
+
+	// Group flat items by date or alphabetical initial
+	const groupedFlatItems = useMemo(() => {
+		if (!flatView || isSearching) return null;
+		const groups: { key: string; label: string; items: FlatItem[] }[] = [];
+		const map = new Map<string, { key: string; label: string; items: FlatItem[] }>();
+
+		if (sortMode.startsWith('alpha')) {
+			for (const item of filteredItems) {
+				const letter = (item.name.split('/').pop()?.[0] ?? '#').toUpperCase();
+				const existing = map.get(letter);
+				if (existing) {
+					existing.items.push(item);
+				} else {
+					const group = { key: letter, label: letter, items: [item] };
+					map.set(letter, group);
+					groups.push(group);
+				}
+			}
+		} else {
+			const dateField = sortMode.startsWith('modified') ? 'mtime' : 'ctime';
+			for (const item of filteredItems) {
+				const ts = item[dateField];
+				const tsStr = typeof ts === 'number' ? new Date(ts).toISOString() : (ts ?? '');
+				const key = getDateKey(tsStr);
+				const existing = map.get(key);
+				if (existing) {
+					existing.items.push(item);
+				} else {
+					const group = { key, label: formatDateLabel(tsStr), items: [item] };
+					map.set(key, group);
+					groups.push(group);
+				}
+			}
+		}
+
+		return groups;
+	}, [flatView, isSearching, filteredItems, sortMode]);
 
 	const workspaceItem: FlatItem = useMemo(
 		() => ({
@@ -306,7 +348,43 @@ export const WorkspaceTree = forwardRef<
 				isFirstWorkspace={isFirstWorkspace}
 				hideChevron={isSearching}
 			/>
-			{(isExpanded || (isSearching && filteredItems.length > 0)) && (
+			{(isExpanded || (isSearching && filteredItems.length > 0)) && groupedFlatItems ? (
+				groupedFlatItems.map((group) => (
+					<div key={group.key}>
+						<div className="feed-date-separator">
+							{group.label}
+						</div>
+						<TreeView
+							flatItems={group.items}
+							selectedPath={selectedPath}
+							selectedPaths={selectedPaths}
+							onItemClick={onItemClick}
+							onToggleFolder={handleToggleFolder}
+							onCreateFile={onCreateFile}
+							onPlusClick={onPlusClick}
+							onContextMenu={onContextMenu}
+							onDeleteFile={onDeleteFile}
+							sortMode={sortMode}
+							onCycleSortMode={() => {}}
+							renamingPath={renamingPath}
+							renameValue={renameValue}
+							renameInputRef={renameInputRef}
+							onRenameChange={onRenameChange}
+							onRenameConfirm={onRenameConfirm}
+							onRenameCancel={onRenameCancel}
+							dropTargetPath={dropTargetPath}
+							onDragStart={onDragStart}
+							onDragOver={onDragOver}
+							onDragLeave={onDragLeave}
+							onDrop={onDrop}
+							onDragEnd={onDragEnd}
+							workspacePath={workspace.path}
+							onSelectFolder={onSelectFolder}
+							searchQuery={searchQuery}
+						/>
+					</div>
+				))
+			) : (isExpanded || (isSearching && filteredItems.length > 0)) ? (
 				<TreeView
 					flatItems={filteredItems}
 					selectedPath={selectedPath}
@@ -337,9 +415,8 @@ export const WorkspaceTree = forwardRef<
 					onSelectFolder={onSelectFolder}
 					searchQuery={searchQuery}
 				/>
-			)}
-			{isExpanded &&
-				isSearching &&
+			) : null}
+			{(isExpanded || isSearching || flatView) &&
 				filteredItems.length === 0 && (
 					<div className="search-no-matches">
 						No matching files

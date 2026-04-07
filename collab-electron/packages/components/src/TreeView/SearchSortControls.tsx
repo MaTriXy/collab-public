@@ -1,5 +1,5 @@
 import React, { useRef, useImperativeHandle } from 'react';
-import { Clock, TextAa, List, TreeStructure } from '@phosphor-icons/react';
+import { Clock, TextAa, List, TreeView as TreeViewIcon } from '@phosphor-icons/react';
 import { sortModeLabels } from './types';
 import type { SortMode } from './types';
 
@@ -51,18 +51,24 @@ export const SearchSortControls = React.forwardRef<
 				</div>
 			) : null}
 			{onToggleFlatView && (
-				<button
-					type="button"
-					className="sort-toggle-button"
-					onClick={onToggleFlatView}
-					title={flatView ? 'ツリー表示に切り替え' : 'フラット表示に切り替え'}
-				>
-					{flatView ? (
-						<List size={12} weight="regular" />
-					) : (
-						<TreeStructure size={12} weight="regular" />
-					)}
-				</button>
+				<div className="nav-view-toggle">
+					<button
+						type="button"
+						className={`nav-view-toggle-button${!flatView ? ' active' : ''}`}
+						onClick={flatView ? onToggleFlatView : undefined}
+						title="Tree view"
+					>
+						<TreeViewIcon size={14} weight={!flatView ? 'fill' : 'regular'} />
+					</button>
+					<button
+						type="button"
+						className={`nav-view-toggle-button${flatView ? ' active' : ''}`}
+						onClick={!flatView ? onToggleFlatView : undefined}
+						title="Feed view"
+					>
+						<List size={14} weight={flatView ? 'bold' : 'regular'} />
+					</button>
+				</div>
 			)}
 			<div className="search-input-wrapper">
 				<input
