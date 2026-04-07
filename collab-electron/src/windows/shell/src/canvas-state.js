@@ -1,5 +1,5 @@
 /**
- * @typedef {'term' | 'note' | 'code' | 'image' | 'graph' | 'browser'} TileType
+ * @typedef {'term' | 'note' | 'code' | 'image' | 'graph' | 'browser' | 'pdf'} TileType
  *
  * @typedef {Object} Tile
  * @property {string} id
@@ -30,6 +30,7 @@ const DEFAULT_TILE_SIZES = {
 	image: { width: 280, height: 280 },
 	graph: { width: 600, height: 500 },
 	browser: { width: 800, height: 650 },
+	pdf: { width: 600, height: 800 },
 };
 
 /** @param {TileType} type */
@@ -136,6 +137,7 @@ export function tileAtPoint(cx, cy) {
 export function inferTileType(filePath) {
 	const ext = filePath.slice(filePath.lastIndexOf(".")).toLowerCase();
 	if (ext === ".md") return "note";
+	if (ext === ".pdf") return "pdf";
 	if (IMAGE_EXTENSIONS.has(ext)) return "image";
 	return "code";
 }
