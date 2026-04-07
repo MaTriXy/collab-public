@@ -1006,7 +1006,10 @@ export default function App() {
 		) => {
 			const allNavigable: FlatItem[] = [];
 			for (const ws of sortedWorkspaces) {
-				if (!expandedWorkspaces.has(ws.path))
+				if (
+					!isSearching &&
+					!expandedWorkspaces.has(ws.path)
+				)
 					continue;
 				const ref =
 					workspaceRefsMap.current.get(
@@ -1095,6 +1098,7 @@ export default function App() {
 		[
 			sortedWorkspaces,
 			expandedWorkspaces,
+			isSearching,
 			selectedPath,
 			multiSelect.cursor,
 			multiSelect.handleClick,

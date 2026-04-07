@@ -146,24 +146,6 @@ export const WorkspaceTree = forwardRef<
 		sortMode,
 	);
 
-	useImperativeHandle(
-		ref,
-		() => ({
-			flatItems,
-			navigableItems,
-			expandAncestors,
-			expandRecursive,
-			collapseAllDirs,
-		}),
-		[
-			flatItems,
-			navigableItems,
-			expandAncestors,
-			expandRecursive,
-			collapseAllDirs,
-		],
-	);
-
 	// Handle initialExpandAll on mount
 	useEffect(() => {
 		if (initialExpandAll) {
@@ -219,6 +201,27 @@ export const WorkspaceTree = forwardRef<
 			return fileName.includes(query);
 		});
 	}, [flatItems, allFiles, searchQuery]);
+
+	useImperativeHandle(
+		ref,
+		() => ({
+			flatItems,
+			navigableItems:
+				isSearching ? filteredItems : navigableItems,
+			expandAncestors,
+			expandRecursive,
+			collapseAllDirs,
+		}),
+		[
+			flatItems,
+			navigableItems,
+			isSearching,
+			filteredItems,
+			expandAncestors,
+			expandRecursive,
+			collapseAllDirs,
+		],
+	);
 
 	const workspaceItem: FlatItem = useMemo(
 		() => ({
