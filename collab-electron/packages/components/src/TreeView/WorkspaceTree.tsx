@@ -64,6 +64,7 @@ export interface WorkspaceTreeProps {
 	onSelectFolder?: (path: string) => void;
 	isFirstWorkspace?: boolean;
 	searchQuery?: string;
+	flatView?: boolean;
 	initialExpandAll?: boolean;
 	onExpandAllComplete?: (wsPath: string) => void;
 }
@@ -128,6 +129,7 @@ export const WorkspaceTree = forwardRef<
 		onSelectFolder,
 		isFirstWorkspace = false,
 		searchQuery,
+		flatView = false,
 		initialExpandAll = false,
 		onExpandAllComplete,
 	},
@@ -161,9 +163,19 @@ export const WorkspaceTree = forwardRef<
 	>(null);
 	const isSearching =
 		(searchQuery ?? '').trim().length > 0;
+	const needsAllFiles = isSearching || flatView;
+
+	// FS変更時にキャッシュを無効化して再取得させる
+	const flatItemsGeneration = flatItems.length;
+	useEffect(() => {
+		if (needsAllFiles) {
+			setAllFiles(null);
+		}
+	// eslint-disable-next-line react-hooks/exhaustive-deps -- flatItemsの変化でキャッシュを破棄
+	}, [flatItemsGeneration]);
 
 	useEffect(() => {
-		if (!isSearching) {
+		if (!needsAllFiles) {
 			setAllFiles(null);
 			return;
 		}
@@ -183,24 +195,49 @@ export const WorkspaceTree = forwardRef<
 		return () => {
 			cancelled = true;
 		};
-		// eslint-disable-next-line react-hooks/exhaustive-deps -- allFiles tracked by isSearching
-	}, [isSearching, workspace.path]);
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- allFiles tracked by needsAllFiles
+	}, [needsAllFiles, workspace.path, allFiles]);
 
 	const filteredItems = useMemo(() => {
-		if (!searchQuery?.trim()) return flatItems;
-		const query = searchQuery.toLowerCase();
+		if (!searchQuery?.trim() && !flatView) return flatItems;
 		const source = allFiles ?? flatItems;
-		return source.filter((item) => {
-			if (item.kind === 'folder') return false;
-			const name = item.name.toLowerCase();
-			const slash = name.lastIndexOf('/');
-			const fileName =
-				slash >= 0
-					? name.slice(slash + 1)
-					: name;
-			return fileName.includes(query);
-		});
-	}, [flatItems, allFiles, searchQuery]);
+		let items: FlatItem[];
+		if (flatView && !searchQuery?.trim()) {
+			items = source.filter((item) => item.kind !== 'folder');
+		} else {
+			const query = searchQuery!.toLowerCase();
+			items = source.filter((item) => {
+				if (item.kind === 'folder') return false;
+				const name = item.name.toLowerCase();
+				const slash = name.lastIndexOf('/');
+				const fileName =
+					slash >= 0
+						? name.slice(slash + 1)
+						: name;
+				return fileName.includes(query);
+			});
+		}
+		// sortModeに従ってソート
+		const cmp = (a: FlatItem, b: FlatItem) => {
+			switch (sortMode) {
+				case 'alpha-asc':
+					return a.name.localeCompare(b.name);
+				case 'alpha-desc':
+					return b.name.localeCompare(a.name);
+				case 'created-desc':
+					return (b.ctime ?? 0) - (a.ctime ?? 0);
+				case 'created-asc':
+					return (a.ctime ?? 0) - (b.ctime ?? 0);
+				case 'modified-desc':
+					return (b.mtime ?? 0) - (a.mtime ?? 0);
+				case 'modified-asc':
+					return (a.mtime ?? 0) - (b.mtime ?? 0);
+				default:
+					return 0;
+			}
+		};
+		return items.sort(cmp);
+	}, [flatItems, allFiles, searchQuery, flatView, sortMode]);
 
 	useImperativeHandle(
 		ref,

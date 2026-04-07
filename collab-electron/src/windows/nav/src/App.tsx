@@ -183,6 +183,17 @@ export default function App() {
 		folderPath: string;
 	} | null>(null);
 	const [searchQuery, setSearchQuery] = useState('');
+	const [flatView, setFlatView] = useState(() => {
+		const stored = localStorage.getItem('nav_flat_view');
+		return stored === 'true';
+	});
+	const toggleFlatView = useCallback(() => {
+		setFlatView((prev) => {
+			const next = !prev;
+			localStorage.setItem('nav_flat_view', String(next));
+			return next;
+		});
+	}, []);
 
 	const workspaces = useMemo(
 		() =>
@@ -1341,6 +1352,12 @@ export default function App() {
 								onArrowNav={
 									navigateItems
 								}
+								flatView={
+									flatView
+								}
+								onToggleFlatView={
+									toggleFlatView
+								}
 							/>
 							<div className="workspace-add-row">
 								<button
@@ -1469,6 +1486,9 @@ export default function App() {
 												}
 												searchQuery={
 													searchQuery
+												}
+												flatView={
+													flatView
 												}
 												initialExpandAll={pendingExpandAll.has(
 													ws.path,

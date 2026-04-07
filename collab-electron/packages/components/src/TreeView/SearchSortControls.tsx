@@ -1,5 +1,5 @@
 import React, { useRef, useImperativeHandle } from 'react';
-import { Clock, TextAa } from '@phosphor-icons/react';
+import { Clock, TextAa, List, TreeStructure } from '@phosphor-icons/react';
 import { sortModeLabels } from './types';
 import type { SortMode } from './types';
 
@@ -16,6 +16,8 @@ interface SearchSortControlsProps {
 	searchShortcut?: string;
 	leadingContent?: React.ReactNode;
 	onArrowNav?: (direction: 'up' | 'down', shiftKey: boolean) => void;
+	flatView?: boolean;
+	onToggleFlatView?: () => void;
 }
 
 export const SearchSortControls = React.forwardRef<
@@ -30,6 +32,8 @@ export const SearchSortControls = React.forwardRef<
 	searchShortcut,
 	leadingContent,
 	onArrowNav,
+	flatView,
+	onToggleFlatView,
 }, ref) => {
 	const inputRef = useRef<HTMLInputElement>(null);
 
@@ -46,6 +50,20 @@ export const SearchSortControls = React.forwardRef<
 					{leadingContent}
 				</div>
 			) : null}
+			{onToggleFlatView && (
+				<button
+					type="button"
+					className="sort-toggle-button"
+					onClick={onToggleFlatView}
+					title={flatView ? 'ツリー表示に切り替え' : 'フラット表示に切り替え'}
+				>
+					{flatView ? (
+						<List size={12} weight="regular" />
+					) : (
+						<TreeStructure size={12} weight="regular" />
+					)}
+				</button>
+			)}
 			<div className="search-input-wrapper">
 				<input
 					ref={inputRef}
