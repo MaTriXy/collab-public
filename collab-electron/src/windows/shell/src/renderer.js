@@ -130,6 +130,7 @@ async function init() {
 	const settingsBackdrop =
 		document.getElementById("settings-backdrop");
 	const settingsModal = document.getElementById("settings-modal");
+	const newTileBtn = document.getElementById("new-tile-btn");
 	const settingsBtn = document.getElementById("settings-btn");
 	const updatePill = document.getElementById("update-pill");
 	const dragDropOverlay =
@@ -1369,6 +1370,29 @@ async function init() {
 	window.shellApi.onUpdateStatus((s) => {
 		updateState = s;
 		renderUpdatePill();
+	});
+
+	newTileBtn.addEventListener("click", async () => {
+		const selected = await window.shellApi.showContextMenu([
+			{ id: "new-terminal", label: "New terminal tile" },
+			{ id: "new-browser", label: "New browser tile" },
+		]);
+		const type = selected === "new-terminal" ? "term" : selected === "new-browser" ? "browser" : null;
+		if (!type) return;
+		const rect = panelViewer.getBoundingClientRect();
+		const size = defaultSize(type);
+		const cx = (rect.width / 2 - viewportState.panX) / viewportState.zoom - size.width / 2;
+		const cy = (rect.height / 2 - viewportState.panY) / viewportState.zoom - size.height / 2;
+		if (type === "term") {
+			const cwd = getTerminalCwd();
+			const tile = tileManager.createCanvasTile("term", cx, cy, { cwd });
+			tileManager.spawnTerminalWebview(tile, true);
+		} else {
+			const tile = tileManager.createCanvasTile("browser", cx, cy);
+			tileManager.spawnBrowserWebview(tile, true);
+		}
+		tileManager.saveCanvasImmediate();
+		minimap.update();
 	});
 
 	settingsBtn.addEventListener("click", () => {

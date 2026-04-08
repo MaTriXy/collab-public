@@ -15,6 +15,8 @@
 	--muted: rgb(113, 113, 123);
 	--edge-dot: rgb(34, 160, 90);
 	--edge-dot-hover: rgb(40, 190, 105);
+	--new-tile-btn-bg: rgb(224, 224, 224);
+	--new-tile-btn-bg-hover: rgb(212, 212, 212);
 
 	--panel-nav-min: 100;
 	--panel-nav-max: 1000;
@@ -37,6 +39,8 @@
 	--muted: rgb(132, 132, 132);
 	--edge-dot: rgb(72, 210, 130);
 	--edge-dot-hover: rgb(90, 235, 150);
+	--new-tile-btn-bg: rgb(44, 44, 44);
+	--new-tile-btn-bg-hover: rgb(56, 56, 56);
 }
 
 * {
@@ -271,6 +275,35 @@ body.platform-win {
 	border-bottom-color: var(--fg);
 	color: var(--fg);
 	font-weight: 500;
+}
+
+#new-tile-btn {
+	position: absolute;
+	top: 10px;
+	right: 10px;
+	z-index: 100;
+	-webkit-app-region: no-drag;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	background: var(--new-tile-btn-bg);
+	color: var(--muted);
+	cursor: pointer;
+	transition: color 0.15s ease, background 0.15s ease;
+}
+
+#new-tile-btn:hover {
+	color: var(--fg);
+	background: var(--new-tile-btn-bg-hover);
+}
+
+#new-tile-btn:active {
+	transform: scale(0.94);
 }
 
 #settings-btn {
@@ -569,17 +602,17 @@ body.platform-win {
 #tooltip {
 	position: fixed;
 	z-index: 10000;
-	background: rgb(50, 50, 50);
-	border: 1px solid rgba(255, 255, 255, 0.12);
+	background: rgb(240, 240, 240);
+	border: 1px solid rgba(0, 0, 0, 0.12);
 	border-radius: 6px;
 	padding: 5px 10px;
 	display: flex;
 	align-items: center;
 	gap: 8px;
 	font-size: 12px;
-	color: rgb(220, 220, 220);
+	color: rgb(50, 50, 50);
 	white-space: nowrap;
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 	pointer-events: none;
 	opacity: 0;
 	transition: opacity 0.15s ease-in-out;
@@ -590,12 +623,25 @@ body.platform-win {
 }
 
 #tooltip kbd {
-	background: rgba(255, 255, 255, 0.08);
-	border: 1px solid rgba(255, 255, 255, 0.06);
+	background: rgba(0, 0, 0, 0.06);
+	border: 1px solid rgba(0, 0, 0, 0.08);
 	border-radius: 3px;
 	padding: 1px 5px;
 	font-size: 11px;
 	font-family: var(--font-mono);
+	color: rgba(50, 50, 50, 0.6);
+}
+
+.dark #tooltip {
+	background: rgb(50, 50, 50);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	color: rgb(220, 220, 220);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.dark #tooltip kbd {
+	background: rgba(255, 255, 255, 0.08);
+	border: 1px solid rgba(255, 255, 255, 0.06);
 	color: rgba(220, 220, 220, 0.6);
 }
 
