@@ -190,7 +190,7 @@ export const FolderRow = React.memo(function FolderRow({
 			)}
 			<button
 				className="folder-action-button"
-				title="Add to folder"
+				data-tooltip="Create in folder"
 				onClick={(e) => {
 					e.stopPropagation();
 					if (onPlusClick) {
@@ -204,7 +204,7 @@ export const FolderRow = React.memo(function FolderRow({
 			</button>
 			<button
 				className="folder-action-button"
-				title="Open in Terminal"
+				data-tooltip="Open in terminal"
 				onClick={(e) => {
 					e.stopPropagation();
 					window.api.openInTerminal(
@@ -406,9 +406,9 @@ export const FileRow = React.memo(
 		prev.item.ctime === next.item.ctime &&
 		prev.isSelected === next.isSelected &&
 		prev.isMultiSelected ===
-			next.isMultiSelected &&
+		next.isMultiSelected &&
 		prev.isDeleteConfirm ===
-			next.isDeleteConfirm &&
+		next.isDeleteConfirm &&
 		prev.item.level === next.item.level &&
 		prev.onItemClick === next.onItemClick &&
 		prev.onDelete === next.onDelete &&
@@ -498,99 +498,225 @@ export const TreeView: React.FC<
 	workspacePath,
 	onSelectFolder,
 }) => {
-	const [deleteConfirmId, setDeleteConfirmId] =
-		useState<string | null>(null);
+		const [deleteConfirmId, setDeleteConfirmId] =
+			useState<string | null>(null);
 
-	const deleteConfirmRef = useRef(deleteConfirmId);
-	deleteConfirmRef.current = deleteConfirmId;
+		const deleteConfirmRef = useRef(deleteConfirmId);
+		deleteConfirmRef.current = deleteConfirmId;
 
-	const handleDelete = useCallback(
-		(
-			e: React.MouseEvent,
-			filePath: string,
-		) => {
-			e.preventDefault();
-			e.stopPropagation();
+		const handleDelete = useCallback(
+			(
+				e: React.MouseEvent,
+				filePath: string,
+			) => {
+				e.preventDefault();
+				e.stopPropagation();
+				if (
+					deleteConfirmRef.current === filePath
+				) {
+					onDeleteFile?.(filePath);
+					setDeleteConfirmId(null);
+				} else {
+					setDeleteConfirmId(filePath);
+				}
+			},
+			[onDeleteFile],
+		);
+
+		const handleDeleteCancel = useCallback(() => {
+			setDeleteConfirmId(null);
+		}, []);
+
+		const containerRef =
+			useRef<HTMLDivElement>(null);
+		const [folderRowHeight, setFolderRowHeight] =
+			useState(0);
+
+		useLayoutEffect(() => {
 			if (
-				deleteConfirmRef.current === filePath
-			) {
-				onDeleteFile?.(filePath);
-				setDeleteConfirmId(null);
-			} else {
-				setDeleteConfirmId(filePath);
-			}
-		},
-		[onDeleteFile],
-	);
-
-	const handleDeleteCancel = useCallback(() => {
-		setDeleteConfirmId(null);
-	}, []);
-
-	const containerRef =
-		useRef<HTMLDivElement>(null);
-	const [folderRowHeight, setFolderRowHeight] =
-		useState(0);
-
-	useLayoutEffect(() => {
-		if (
-			folderRowHeight > 0 ||
-			!containerRef.current
-		)
-			return;
-		const el =
-			containerRef.current.querySelector(
-				'.collection-folder-row',
-			);
-		if (el) {
-			setFolderRowHeight(
-				el.getBoundingClientRect().height,
-			);
-		}
-	}, [folderRowHeight, flatItems]);
-
-	const renderItems = (
-		start: number,
-		minLevel: number,
-	): [React.ReactNode[], number] => {
-		const nodes: React.ReactNode[] = [];
-		let i = start;
-
-		while (i < flatItems.length) {
-			const item = flatItems[i]!;
-			if (item.level < minLevel) break;
-
-			if (
-				item.kind === 'folder' &&
-				item.isExpanded
-			) {
-				i++;
-				const [children, nextI] = renderItems(
-					i,
-					item.level + 1,
+				folderRowHeight > 0 ||
+				!containerRef.current
+			)
+				return;
+			const el =
+				containerRef.current.querySelector(
+					'.collection-folder-row',
 				);
-				const guideStyle = {
-					'--guide-left': `${item.level * 14 + 6}px`,
-					'--guide-top': `${folderRowHeight}px`,
-					'--guide-z': 9 - item.level,
-				} as React.CSSProperties;
-				nodes.push(
-					<div
-						key={item.id}
-						className="folder-group"
-						style={guideStyle}
-					>
+			if (el) {
+				setFolderRowHeight(
+					el.getBoundingClientRect().height,
+				);
+			}
+		}, [folderRowHeight, flatItems]);
+
+		const renderItems = (
+			start: number,
+			minLevel: number,
+		): [React.ReactNode[], number] => {
+			const nodes: React.ReactNode[] = [];
+			let i = start;
+
+			while (i < flatItems.length) {
+				const item = flatItems[i]!;
+				if (item.level < minLevel) break;
+
+				if (
+					item.kind === 'folder' &&
+					item.isExpanded
+				) {
+					i++;
+					const [children, nextI] = renderItems(
+						i,
+						item.level + 1,
+					);
+					const guideStyle = {
+						'--guide-left': `${item.level * 14 + 6}px`,
+						'--guide-top': `${folderRowHeight}px`,
+						'--guide-z': 9 - item.level,
+					} as React.CSSProperties;
+					nodes.push(
+						<div
+							key={item.id}
+							className="folder-group"
+							style={guideStyle}
+						>
+							<FolderRow
+								item={item}
+								onToggle={onToggleFolder}
+								onCreateFile={
+									onCreateFile
+								}
+								onPlusClick={
+									onPlusClick
+								}
+								rowHeight={
+									folderRowHeight
+								}
+								isRenaming={
+									renamingPath ===
+									item.path
+								}
+								renameValue={
+									renameValue ?? ''
+								}
+								renameInputRef={
+									renameInputRef ?? {
+										current: null,
+									}
+								}
+								onRenameChange={
+									onRenameChange ??
+									(() => { })
+								}
+								onRenameConfirm={
+									onRenameConfirm ??
+									(() => { })
+								}
+								onRenameCancel={
+									onRenameCancel ??
+									(() => { })
+								}
+								onContextMenu={
+									onContextMenu
+								}
+								isDropTarget={
+									dropTargetPath ===
+									item.path
+								}
+								onDragStart={
+									onDragStart
+								}
+								onDragOver={
+									onDragOver
+								}
+								onDragLeave={
+									onDragLeave
+								}
+								onDrop={onDrop}
+								onDragEnd={
+									onDragEnd
+								}
+								onSelectFolder={
+									onSelectFolder
+								}
+							/>
+							{children}
+						</div>,
+					);
+					i = nextI;
+				} else if (item.kind === 'folder') {
+					nodes.push(
 						<FolderRow
+							key={item.id}
 							item={item}
 							onToggle={onToggleFolder}
-							onCreateFile={
-								onCreateFile
+							onCreateFile={onCreateFile}
+							onPlusClick={onPlusClick}
+							rowHeight={folderRowHeight}
+							isRenaming={
+								renamingPath ===
+								item.path
 							}
-							onPlusClick={
-								onPlusClick
+							renameValue={
+								renameValue ?? ''
 							}
-							rowHeight={
-								folderRowHeight
+							renameInputRef={
+								renameInputRef ?? {
+									current: null,
+								}
+							}
+							onRenameChange={
+								onRenameChange ??
+								(() => { })
+							}
+							onRenameConfirm={
+								onRenameConfirm ??
+								(() => { })
+							}
+							onRenameCancel={
+								onRenameCancel ??
+								(() => { })
+							}
+							onContextMenu={
+								onContextMenu
+							}
+							isDropTarget={
+								dropTargetPath ===
+								item.path
+							}
+							onDragStart={onDragStart}
+							onDragOver={onDragOver}
+							onDragLeave={onDragLeave}
+							onDrop={onDrop}
+							onDragEnd={onDragEnd}
+							onSelectFolder={
+								onSelectFolder
+							}
+						/>,
+					);
+					i++;
+				} else {
+					nodes.push(
+						<FileRow
+							key={item.id}
+							item={item}
+							isSelected={
+								item.path === selectedPath
+							}
+							isMultiSelected={
+								selectedPaths.has(
+									item.path,
+								) &&
+								item.path !== selectedPath
+							}
+							isDeleteConfirm={
+								deleteConfirmId ===
+								item.path
+							}
+							onItemClick={onItemClick}
+							onDelete={handleDelete}
+							onDeleteCancel={
+								handleDeleteCancel
 							}
 							isRenaming={
 								renamingPath ===
@@ -606,165 +732,39 @@ export const TreeView: React.FC<
 							}
 							onRenameChange={
 								onRenameChange ??
-								(() => {})
+								(() => { })
 							}
 							onRenameConfirm={
 								onRenameConfirm ??
-								(() => {})
+								(() => { })
 							}
 							onRenameCancel={
 								onRenameCancel ??
-								(() => {})
+								(() => { })
 							}
 							onContextMenu={
 								onContextMenu
 							}
-							isDropTarget={
-								dropTargetPath ===
-								item.path
-							}
-							onDragStart={
-								onDragStart
-							}
-							onDragOver={
-								onDragOver
-							}
-							onDragLeave={
-								onDragLeave
-							}
-							onDrop={onDrop}
-							onDragEnd={
-								onDragEnd
-							}
-							onSelectFolder={
-								onSelectFolder
-							}
-						/>
-						{children}
-					</div>,
-				);
-				i = nextI;
-			} else if (item.kind === 'folder') {
-				nodes.push(
-					<FolderRow
-						key={item.id}
-						item={item}
-						onToggle={onToggleFolder}
-						onCreateFile={onCreateFile}
-						onPlusClick={onPlusClick}
-						rowHeight={folderRowHeight}
-						isRenaming={
-							renamingPath ===
-							item.path
-						}
-						renameValue={
-							renameValue ?? ''
-						}
-						renameInputRef={
-							renameInputRef ?? {
-								current: null,
-							}
-						}
-						onRenameChange={
-							onRenameChange ??
-							(() => {})
-						}
-						onRenameConfirm={
-							onRenameConfirm ??
-							(() => {})
-						}
-						onRenameCancel={
-							onRenameCancel ??
-							(() => {})
-						}
-						onContextMenu={
-							onContextMenu
-						}
-						isDropTarget={
-							dropTargetPath ===
-							item.path
-						}
-						onDragStart={onDragStart}
-						onDragOver={onDragOver}
-						onDragLeave={onDragLeave}
-						onDrop={onDrop}
-						onDragEnd={onDragEnd}
-						onSelectFolder={
-							onSelectFolder
-						}
-					/>,
-				);
-				i++;
-			} else {
-				nodes.push(
-					<FileRow
-						key={item.id}
-						item={item}
-						isSelected={
-							item.path === selectedPath
-						}
-						isMultiSelected={
-							selectedPaths.has(
-								item.path,
-							) &&
-							item.path !== selectedPath
-						}
-						isDeleteConfirm={
-							deleteConfirmId ===
-							item.path
-						}
-						onItemClick={onItemClick}
-						onDelete={handleDelete}
-						onDeleteCancel={
-							handleDeleteCancel
-						}
-						isRenaming={
-							renamingPath ===
-							item.path
-						}
-						renameValue={
-							renameValue ?? ''
-						}
-						renameInputRef={
-							renameInputRef ?? {
-								current: null,
-							}
-						}
-						onRenameChange={
-							onRenameChange ??
-							(() => {})
-						}
-						onRenameConfirm={
-							onRenameConfirm ??
-							(() => {})
-						}
-						onRenameCancel={
-							onRenameCancel ??
-							(() => {})
-						}
-						onContextMenu={
-							onContextMenu
-						}
-						onDragStart={onDragStart}
-						onDragEnd={onDragEnd}
-						sortMode={sortMode}
-					/>,
-				);
-				i++;
+							onDragStart={onDragStart}
+							onDragEnd={onDragEnd}
+							sortMode={sortMode}
+						/>,
+					);
+					i++;
+				}
 			}
-		}
 
-		return [nodes, i];
-	};
+			return [nodes, i];
+		};
 
-	const [treeContent] = renderItems(0, 0);
+		const [treeContent] = renderItems(0, 0);
 
-	return (
-		<div
-			ref={containerRef}
-			onDragOver={
-				workspacePath
-					? (e) => {
+		return (
+			<div
+				ref={containerRef}
+				onDragOver={
+					workspacePath
+						? (e) => {
 							if (
 								e.target !==
 								e.currentTarget
@@ -775,11 +775,11 @@ export const TreeView: React.FC<
 								workspacePath,
 							);
 						}
-					: undefined
-			}
-			onDrop={
-				workspacePath
-					? (e) => {
+						: undefined
+				}
+				onDrop={
+					workspacePath
+						? (e) => {
 							if (
 								e.target !==
 								e.currentTarget
@@ -790,10 +790,10 @@ export const TreeView: React.FC<
 								workspacePath,
 							);
 						}
-					: undefined
-			}
-		>
-			{treeContent}
-		</div>
-	);
-};
+						: undefined
+				}
+			>
+				{treeContent}
+			</div>
+		);
+	};
