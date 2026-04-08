@@ -49,8 +49,15 @@ function isOnPath(command: string): boolean {
 
 // -- skill source --
 
-function skillSourceDir(): string {
+export const VALID_AGENT_IDS = new Set<string>(["claude", "codex", "gemini"]);
+
+export function skillSourceDir(): string {
   const candidates = [
+    // Packaged app: extraResources destination takes priority
+    ...(app.isPackaged && process.resourcesPath
+      ? [join(process.resourcesPath, "collab-canvas-skill")]
+      : []),
+    // Development: resolve from app root
     join(app.getAppPath(), "packages", "collab-canvas-skill"),
     join(__dirname, "..", "..", "packages", "collab-canvas-skill"),
     join(__dirname, "..", "packages", "collab-canvas-skill"),
@@ -60,7 +67,9 @@ function skillSourceDir(): string {
       return dir;
     }
   }
-  return candidates[0]!;
+  throw new Error(
+    `Canvas skill source files not found. Searched: ${candidates.join(", ")}`,
+  );
 }
 
 // -- install paths --
@@ -87,7 +96,7 @@ function skillInstalled(id: AgentId): boolean {
 
 // -- install / uninstall --
 
-function installSkill(id: AgentId): void {
+export function installSkill(id: AgentId): void {
   const srcDir = skillSourceDir();
   const target = skillInstallPath(id);
 
@@ -114,7 +123,7 @@ function installSkill(id: AgentId): void {
   );
 }
 
-function uninstallSkill(id: AgentId): void {
+export function uninstallSkill(id: AgentId): void {
   const target = skillInstallPath(id);
   if (id === "claude") {
     rmSync(target, { recursive: true, force: true });
@@ -164,16 +173,34 @@ export function registerIntegrationsIpc(): void {
   ipcMain.handle(
     "integrations:install-skill",
     (_event, agentId: string) => {
-      installSkill(agentId as AgentId);
-      return { ok: true };
+      if (!VALID_AGENT_IDS.has(agentId)) {
+        return { ok: false, error: `Unknown agent: ${agentId}` };
+      }
+      try {
+        installSkill(agentId as AgentId);
+        return { ok: true };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error("[integrations] Failed to install skill:", msg);
+        return { ok: false, error: msg };
+      }
     },
   );
 
   ipcMain.handle(
     "integrations:uninstall-skill",
     (_event, agentId: string) => {
-      uninstallSkill(agentId as AgentId);
-      return { ok: true };
+      if (!VALID_AGENT_IDS.has(agentId)) {
+        return { ok: false, error: `Unknown agent: ${agentId}` };
+      }
+      try {
+        uninstallSkill(agentId as AgentId);
+        return { ok: true };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error("[integrations] Failed to uninstall skill:", msg);
+        return { ok: false, error: msg };
+      }
     },
   );
 
