@@ -193,7 +193,21 @@ export function createMinimap({ viewportEl, wrapperEl, viewportState, getTiles, 
 		});
 	}
 
-	function updateVisibility() {
+	resizeCanvas();
+
+	let idleTimer = null;
+
+	function scheduleIdle() {
+		clearTimeout(idleTimer);
+		wrapperEl.classList.remove("idle");
+		idleTimer = setTimeout(() => {
+			if (wrapperEl.classList.contains("visible")) {
+				wrapperEl.classList.add("idle");
+			}
+		}, 1500);
+	}
+
+	function updateVisibilityWithIdle() {
 		const tiles = getTiles();
 		const shouldShow = tiles.length > 0;
 		const isShown = wrapperEl.classList.contains("visible");
@@ -201,18 +215,20 @@ export function createMinimap({ viewportEl, wrapperEl, viewportState, getTiles, 
 		if (shouldShow && !isShown) {
 			wrapperEl.classList.add("visible");
 			canvasEl.style.setProperty("--zoom-indicator-bottom", "136px");
+			scheduleIdle();
 		} else if (!shouldShow && isShown) {
+			clearTimeout(idleTimer);
+			wrapperEl.classList.remove("idle");
 			wrapperEl.classList.remove("visible");
 			canvasEl.style.setProperty("--zoom-indicator-bottom", "12px");
 		}
 	}
 
-	resizeCanvas();
-
 	const minimap = {
 		update() {
-			updateVisibility();
+			updateVisibilityWithIdle();
 			scheduleRedraw();
+			scheduleIdle();
 		},
 		getViewportRect() {
 			if (!bounds) return null;
