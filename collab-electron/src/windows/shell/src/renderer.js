@@ -1167,14 +1167,20 @@ async function init() {
 			{ id: "new-terminal", label: "New terminal tile" },
 			{ id: "new-browser", label: "New browser tile" },
 		]);
-		if (selected === "new-terminal") {
+		const type = selected === "new-terminal" ? "term" : selected === "new-browser" ? "browser" : null;
+		if (!type) return;
+		const rect = panelViewer.getBoundingClientRect();
+		const size = defaultSize(type);
+		const cx = (rect.width / 2 - viewportState.panX) / viewportState.zoom - size.width / 2;
+		const cy = (rect.height / 2 - viewportState.panY) / viewportState.zoom - size.height / 2;
+		if (type === "term") {
 			const ws = workspaceManager.getActiveWorkspace();
 			const cwd = ws ? ws.path : undefined;
-			const tile = tileManager.createCanvasTile("term", 100, 100, { cwd });
+			const tile = tileManager.createCanvasTile("term", cx, cy, { cwd });
 			tileManager.spawnTerminalWebview(tile, true);
 			tileManager.saveCanvasImmediate();
-		} else if (selected === "new-browser") {
-			const tile = tileManager.createCanvasTile("browser", 100, 100);
+		} else {
+			const tile = tileManager.createCanvasTile("browser", cx, cy);
 			tileManager.spawnBrowserWebview(tile, true);
 			tileManager.saveCanvasImmediate();
 		}

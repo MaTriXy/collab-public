@@ -216,27 +216,28 @@ body.platform-win {
 
 #new-tile-btn {
 	position: absolute;
-	top: 7px;
-	right: 38px;
-	z-index: 101;
+	top: 10px;
+	right: 10px;
+	z-index: 100;
 	-webkit-app-region: no-drag;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 24px;
-	height: 24px;
+	width: 28px;
+	height: 28px;
 	padding: 0;
 	border: none;
-	border-radius: 6px;
-	background: transparent;
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--card) 80%, transparent);
 	color: var(--muted);
 	cursor: pointer;
+	backdrop-filter: blur(8px);
 	transition: color 0.15s ease, background 0.15s ease;
 }
 
 #new-tile-btn:hover {
 	color: var(--fg);
-	background: color-mix(in srgb, var(--fg) 8%, transparent);
+	background: color-mix(in srgb, var(--card) 95%, transparent);
 }
 
 #new-tile-btn:active {
@@ -275,7 +276,7 @@ body.platform-win {
 #update-pill {
 	position: absolute;
 	top: 8px;
-	right: 70px;
+	right: 42px;
 	z-index: 101;
 	-webkit-app-region: no-drag;
 	padding: 2px 9px;
