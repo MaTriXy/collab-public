@@ -50,6 +50,7 @@ import { stopImageWorker } from "./image-service";
 import { installCli } from "./cli-installer";
 import { listTerminalTargets } from "./terminal-target";
 import { readSessionMeta } from "./tmux";
+import { registerBrowserIpc } from "./ipc-browser";
 
 // macOS apps launched from Finder don't inherit the user's shell
 // LANG, so child processes (tmux, shells) default to ASCII.
@@ -814,6 +815,7 @@ app.whenReady().then(async () => {
   installCli();
   watcher.startWorker();
   registerIpcHandlers(config);
+  registerBrowserIpc();
   registerIntegrationsIpc();
   setupUpdateIPC();
   updateManager.init({

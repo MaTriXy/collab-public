@@ -116,10 +116,10 @@ async function cmdTileList() {
 
 async function cmdTileCreate(args) {
   if (args.length === 0) {
-    die("tile create requires a type (term, note, code, image, graph)");
+    die("tile create requires a type (term, note, code, image, graph, browser, pdf)");
   }
   const tileType = args.shift();
-  const valid = ["term", "note", "code", "image", "graph"];
+  const valid = ["term", "note", "code", "image", "graph", "browser", "pdf"];
   if (!valid.includes(tileType)) {
     die(`unknown tile type: ${tileType} (expected: ${valid.join(", ")})`);
   }
@@ -131,6 +131,11 @@ async function cmdTileCreate(args) {
       case "--file": {
         if (args.length === 0) die("--file requires a path");
         params.filePath = resolve(args.shift());
+        break;
+      }
+      case "--url": {
+        if (args.length === 0) die("--url requires a URL");
+        params.url = args.shift();
         break;
       }
       case "--pos": {
@@ -241,6 +246,65 @@ async function cmdTerminalRead(args) {
   console.log(pretty(result));
 }
 
+// --- browser subcommands --------------------------------------------------
+
+async function cmdBrowserNavigate(args) {
+  if (args.length < 2) die("browser navigate requires <id> <url>");
+  const tileId = args[0];
+  const url = args[1];
+  const result = await rpcCall("canvas.browserNavigate", { tileId, url });
+  console.log(`navigated ${tileId} to ${result.url}`);
+}
+
+async function cmdBrowserScreenshot(args) {
+  if (args.length === 0) die("browser screenshot requires a tile id");
+  const tileId = args.shift();
+  let outFile = null;
+
+  while (args.length > 0) {
+    const flag = args.shift();
+    if (flag === "--out") {
+      if (args.length === 0) die("--out requires a file path");
+      outFile = resolve(args.shift());
+    } else {
+      die(`unknown option: ${flag}`);
+    }
+  }
+
+  const result = await rpcCall("canvas.browserScreenshot", { tileId });
+  if (outFile) {
+    const { writeFileSync } = await import("node:fs");
+    writeFileSync(outFile, Buffer.from(result.data, "base64"));
+    console.log(`screenshot saved to ${outFile}`);
+  } else {
+    console.log(result.data);
+  }
+}
+
+async function cmdBrowserSnapshot(args) {
+  if (args.length === 0) die("browser snapshot requires a tile id");
+  const tileId = args[0];
+  const result = await rpcCall("canvas.browserSnapshot", { tileId });
+  console.log(pretty(result));
+}
+
+async function cmdBrowserClick(args) {
+  if (args.length < 2) die("browser click requires <id> <selector>");
+  const tileId = args[0];
+  const selector = args[1];
+  await rpcCall("canvas.browserClick", { tileId, selector });
+  console.log(`clicked ${selector} in ${tileId}`);
+}
+
+async function cmdBrowserType(args) {
+  if (args.length < 3) die("browser type requires <id> <selector> <text>");
+  const tileId = args[0];
+  const selector = args[1];
+  const text = args[2];
+  await rpcCall("canvas.browserType", { tileId, selector, text });
+  console.log(`typed into ${selector} in ${tileId}`);
+}
+
 // --- usage ----------------------------------------------------------------
 
 function usage() {
@@ -258,11 +322,17 @@ COMMANDS
   tile focus <id> [<id>...]          Bring tiles into view
   terminal write <id> <input>        Send input to a terminal tile
   terminal read <id> [--lines N]     Read output from a terminal tile
+  browser navigate <id> <url>        Navigate browser tile to URL
+  browser screenshot <id> [--out f]  Capture screenshot (base64 or file)
+  browser snapshot <id>              Get DOM tree of browser tile
+  browser click <id> <selector>      Click element in browser tile
+  browser type <id> <sel> <text>     Type text into element
   help, --help                       Show this help
 
 TILE CREATE OPTIONS
-  <type>          Tile type: term, note, code, image, graph
+  <type>          Tile type: term, note, code, image, graph, browser, pdf
   --file <path>   File to open in the tile
+  --url <url>     URL to open in a browser tile
   --pos x,y       Position in grid units (default: auto)
   --size w,h      Size in grid units (default: type-dependent)
 
@@ -274,6 +344,9 @@ TILE RESIZE OPTIONS
 
 TERMINAL READ OPTIONS
   --lines N       Number of lines to capture (default: 50)
+
+BROWSER SCREENSHOT OPTIONS
+  --out <path>    Save screenshot to file instead of printing base64
 
 COORDINATES
   All coordinates are in grid units.
@@ -333,6 +406,22 @@ try {
         case "write": await cmdTerminalWrite(rest); break;
         case "read":  await cmdTerminalRead(rest); break;
         default: die(`unknown terminal subcommand: ${sub}`);
+      }
+      break;
+    }
+    case "browser": {
+      if (argv.length < 2) {
+        die("browser requires a subcommand (navigate, screenshot, snapshot, click, type)");
+      }
+      const sub = argv[1];
+      const rest = argv.slice(2);
+      switch (sub) {
+        case "navigate":   await cmdBrowserNavigate(rest); break;
+        case "screenshot": await cmdBrowserScreenshot(rest); break;
+        case "snapshot":   await cmdBrowserSnapshot(rest); break;
+        case "click":      await cmdBrowserClick(rest); break;
+        case "type":       await cmdBrowserType(rest); break;
+        default: die(`unknown browser subcommand: ${sub}`);
       }
       break;
     }

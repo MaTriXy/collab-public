@@ -264,4 +264,29 @@ contextBridge.exposeInMainWorld("shellApi", {
   },
 
   ptyDiscover: () => ipcRenderer.invoke("pty:discover"),
+
+  browserNavigate: (
+    webContentsId: number, url: string,
+  ): Promise<{ url: string }> =>
+    ipcRenderer.invoke("browser:navigate", { webContentsId, url }),
+
+  browserScreenshot: (
+    webContentsId: number,
+  ): Promise<{ data: string }> =>
+    ipcRenderer.invoke("browser:screenshot", { webContentsId }),
+
+  browserSnapshot: (
+    webContentsId: number,
+  ): Promise<unknown> =>
+    ipcRenderer.invoke("browser:snapshot", { webContentsId }),
+
+  browserClick: (
+    webContentsId: number, selector: string,
+  ): Promise<void> =>
+    ipcRenderer.invoke("browser:click", { webContentsId, selector }),
+
+  browserType: (
+    webContentsId: number, selector: string, text: string,
+  ): Promise<void> =>
+    ipcRenderer.invoke("browser:type", { webContentsId, selector, text }),
 });

@@ -178,4 +178,65 @@ export function registerCanvasRpc(win: BrowserWindow): void {
       },
     },
   );
+
+  registerMethod(
+    "canvas.browserNavigate",
+    (params) => sendToShell("canvas.browserNavigate", params),
+    {
+      description: "Navigate a browser tile to a URL",
+      params: {
+        tileId: "ID of the browser tile",
+        url: "URL to navigate to",
+      },
+    },
+  );
+
+  registerMethod(
+    "canvas.browserScreenshot",
+    (params) => sendToShell("canvas.browserScreenshot", params),
+    {
+      description:
+        "Capture a screenshot of a browser tile as base64 PNG",
+      params: {
+        tileId: "ID of the browser tile",
+      },
+    },
+  );
+
+  registerMethod(
+    "canvas.browserSnapshot",
+    (params) => sendToShell("canvas.browserSnapshot", params),
+    {
+      description: "Get the DOM tree of a browser tile",
+      params: {
+        tileId: "ID of the browser tile",
+      },
+    },
+  );
+
+  registerMethod(
+    "canvas.browserClick",
+    (params) => sendToShell("canvas.browserClick", params),
+    {
+      description: "Click an element in a browser tile",
+      params: {
+        tileId: "ID of the browser tile",
+        selector: "CSS selector of the element to click",
+      },
+    },
+  );
+
+  registerMethod(
+    "canvas.browserType",
+    (params) => sendToShell("canvas.browserType", params),
+    {
+      description:
+        "Focus an element and type text in a browser tile",
+      params: {
+        tileId: "ID of the browser tile",
+        selector: "CSS selector of the element to focus",
+        text: "Text to type",
+      },
+    },
+  );
 }
