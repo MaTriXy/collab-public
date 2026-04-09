@@ -34,7 +34,9 @@ export function findAutoPlacement(existingTiles, width, height) {
  * Methods: tileList, tileCreate, tileRemove, tileMove, tileResize,
  *          viewportGet, viewportSet, terminalWrite, terminalRead,
  *          tileFocus, browserNavigate, browserScreenshot,
- *          browserSnapshot, browserClick, browserType.
+ *          browserSnapshot, browserClick, browserType,
+ *          browserScroll, browserEvaluate, browserWait,
+ *          browserInfo.
  */
 export function createCanvasRpc({
 	tileManager, viewportState, viewport, edgeIndicators,
@@ -334,6 +336,24 @@ export function createCanvasRpc({
 					result = await window.shellApi.browserEvaluate(
 						wcId, params.expression,
 					);
+					break;
+				}
+				case "browserWait": {
+					const wcId = requireBrowserWcId(
+						requestId, params.tileId,
+					);
+					if (wcId == null) return;
+					result = await window.shellApi.browserWait(
+						wcId, params.timeout,
+					);
+					break;
+				}
+				case "browserInfo": {
+					const wcId = requireBrowserWcId(
+						requestId, params.tileId,
+					);
+					if (wcId == null) return;
+					result = await window.shellApi.browserInfo(wcId);
 					break;
 				}
 				case "tileFocus": {

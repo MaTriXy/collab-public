@@ -298,5 +298,22 @@ contextBridge.exposeInMainWorld("shellApi", {
   browserEvaluate: (
     webContentsId: number, expression: string,
   ): Promise<{ value: unknown }> =>
-    ipcRenderer.invoke("browser:evaluate", { webContentsId, expression }),
+    ipcRenderer.invoke(
+      "browser:evaluate", { webContentsId, expression },
+    ),
+
+  browserWait: (
+    webContentsId: number, timeout?: number,
+  ): Promise<{ status: string }> =>
+    ipcRenderer.invoke(
+      "browser:wait", { webContentsId, timeout },
+    ),
+
+  browserInfo: (
+    webContentsId: number,
+  ): Promise<{
+    url: string; title: string; loading: boolean;
+    canGoBack: boolean; canGoForward: boolean;
+  }> =>
+    ipcRenderer.invoke("browser:info", { webContentsId }),
 });

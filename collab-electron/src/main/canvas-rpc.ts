@@ -264,4 +264,29 @@ export function registerCanvasRpc(win: BrowserWindow): void {
       },
     },
   );
+
+  registerMethod(
+    "canvas.browserWait",
+    (params) => sendToShell("browserWait", params),
+    {
+      description:
+        "Wait for a browser tile to finish loading",
+      params: {
+        tileId: "ID of the browser tile",
+        timeout:
+          "(optional) Max wait in ms (default 10000)",
+      },
+    },
+  );
+
+  registerMethod(
+    "canvas.browserInfo",
+    (params) => sendToShell("browserInfo", params),
+    {
+      description:
+        "Get current URL, title, and loading state of a " +
+        "browser tile",
+      params: { tileId: "ID of the browser tile" },
+    },
+  );
 }

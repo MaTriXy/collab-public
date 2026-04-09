@@ -135,10 +135,63 @@ export function registerBrowserIpc(): void {
     async (_event, { webContentsId, x, y }: {
       webContentsId: number; x: number; y: number;
     }) => {
-      await cdpSend(webContentsId, "Input.dispatchMouseEvent", {
+      // Fire-and-forget: CDP mouseWheel doesn't resolve
+      // reliably, so don't await it.
+      cdpSend(webContentsId, "Input.dispatchMouseEvent", {
         type: "mouseWheel", x: 0, y: 0, deltaX: x, deltaY: y,
       });
       return {};
+    },
+  );
+
+  ipcMain.handle(
+    "browser:wait",
+    async (_event, { webContentsId, timeout }: {
+      webContentsId: number; timeout?: number;
+    }) => {
+      const ms = timeout ?? 10_000;
+      const wc = getWc(webContentsId);
+      if (!wc.isLoading()) {
+        return { status: "ready" };
+      }
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          wc.removeListener("did-finish-load", onLoad);
+          wc.removeListener("did-fail-load", onFail);
+          reject(new Error("waitFor timed out"));
+        }, ms);
+        const onLoad = () => {
+          clearTimeout(timer);
+          wc.removeListener("did-fail-load", onFail);
+          resolve();
+        };
+        const onFail = (
+          _e: unknown, code: number, desc: string,
+        ) => {
+          clearTimeout(timer);
+          wc.removeListener("did-finish-load", onLoad);
+          reject(new Error(`Load failed (${code}): ${desc}`));
+        };
+        wc.once("did-finish-load", onLoad);
+        wc.once("did-fail-load", onFail);
+      });
+      return { status: "ready" };
+    },
+  );
+
+  ipcMain.handle(
+    "browser:info",
+    async (_event, { webContentsId }: {
+      webContentsId: number;
+    }) => {
+      const wc = getWc(webContentsId);
+      return {
+        url: wc.getURL(),
+        title: wc.getTitle(),
+        loading: wc.isLoading(),
+        canGoBack: wc.canGoBack(),
+        canGoForward: wc.canGoForward(),
+      };
     },
   );
 

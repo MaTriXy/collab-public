@@ -332,6 +332,37 @@ async function cmdBrowserEvaluate(args) {
   console.log(pretty(result));
 }
 
+async function cmdBrowserWait(args) {
+  if (args.length === 0) die("browser wait requires a tile id");
+  const tileId = args.shift();
+  let timeout;
+
+  while (args.length > 0) {
+    const flag = args.shift();
+    if (flag === "--timeout") {
+      if (args.length === 0) die("--timeout requires ms");
+      timeout = Number(args.shift());
+      if (!Number.isFinite(timeout) || timeout <= 0) {
+        die("--timeout must be a positive number");
+      }
+    } else {
+      die(`unknown option: ${flag}`);
+    }
+  }
+
+  const params = { tileId };
+  if (timeout) params.timeout = timeout;
+  const result = await rpcCall("canvas.browserWait", params);
+  console.log(result.status);
+}
+
+async function cmdBrowserInfo(args) {
+  if (args.length === 0) die("browser info requires a tile id");
+  const tileId = args[0];
+  const result = await rpcCall("canvas.browserInfo", { tileId });
+  console.log(pretty(result));
+}
+
 // --- usage ----------------------------------------------------------------
 
 function usage() {
@@ -356,6 +387,8 @@ COMMANDS
   browser type <id> <sel> <text>     Type text into element
   browser scroll <id> <dx,dy>       Scroll by delta (pixels)
   browser eval <id> <expression>    Run JS and return result
+  browser wait <id> [--timeout ms]  Wait for page load
+  browser info <id>                 Get URL, title, load state
   help, --help                       Show this help
 
 TILE CREATE OPTIONS
@@ -440,7 +473,7 @@ try {
     }
     case "browser": {
       if (argv.length < 2) {
-        die("browser requires a subcommand (navigate, screenshot, snapshot, click, type, scroll, eval)");
+        die("browser requires a subcommand (navigate, screenshot, snapshot, click, type, scroll, eval, wait, info)");
       }
       const sub = argv[1];
       const rest = argv.slice(2);
@@ -452,6 +485,8 @@ try {
         case "type":       await cmdBrowserType(rest); break;
         case "scroll":     await cmdBrowserScroll(rest); break;
         case "eval":       await cmdBrowserEvaluate(rest); break;
+        case "wait":       await cmdBrowserWait(rest); break;
+        case "info":       await cmdBrowserInfo(rest); break;
         default: die(`unknown browser subcommand: ${sub}`);
       }
       break;
