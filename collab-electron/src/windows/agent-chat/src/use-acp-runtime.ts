@@ -3,6 +3,7 @@ import {
   useLocalRuntime,
   type ChatModelAdapter,
   type ChatModelRunResult,
+  type ThreadMessageLike,
 } from "@assistant-ui/react";
 
 export type AcpUpdate = {
@@ -32,7 +33,7 @@ declare global {
       ) => Promise<{
         sessionId: string;
         resumed: boolean;
-        replay?: AcpUpdate[];
+        cachedMessages: unknown[];
       }>;
       agentPrompt: (
         sessionId: string, text: string,
@@ -42,6 +43,9 @@ declare global {
       ) => Promise<void>;
       agentKill: (
         sessionId: string,
+      ) => Promise<void>;
+      agentSaveMessages: (
+        messages: unknown[],
       ) => Promise<void>;
       onAgentUpdate: (
         cb: (params: AcpUpdate) => void,
@@ -66,158 +70,7 @@ declare global {
   }
 }
 
-export type AgentStatus =
-  | "idle"
-  | "connecting"
-  | "ready"
-  | "error";
 
-type ThreadMessageLike = {
-  role: "user" | "assistant";
-  content: Array<
-    | { type: "text"; text: string }
-    | {
-      type: "tool-call";
-      toolCallId: string;
-      toolName: string;
-      args: Record<string, unknown>;
-      result?: unknown;
-    }
-  >;
-};
-
-/**
- * Parse ACP session replay notifications into
- * ThreadMessageLike messages for the UI.
- */
-function parseReplay(
-  replay: AcpUpdate[],
-): ThreadMessageLike[] {
-  const messages: ThreadMessageLike[] = [];
-  let currentParts: ThreadMessageLike["content"] = [];
-  let currentRole: "user" | "assistant" | null = null;
-
-  function flush() {
-    if (currentRole && currentParts.length > 0) {
-      let parts = [...currentParts];
-      // Strip XML metadata tags from user messages
-      // (Claude Code embeds command metadata in user
-      // message replay)
-      if (currentRole === "user") {
-        parts = parts
-          .map((p) => {
-            if (p.type !== "text") return p;
-            const cleaned = p.text
-              .replace(
-                /<[a-z-]+>[^<]*<\/[a-z-]+>/g, "",
-              )
-              .trim();
-            if (!cleaned) return null;
-            return { ...p, text: cleaned };
-          })
-          .filter(Boolean) as typeof parts;
-      }
-      if (parts.length > 0) {
-        messages.push({
-          role: currentRole,
-          content: parts,
-        });
-      }
-    }
-    currentParts = [];
-    currentRole = null;
-  }
-
-  for (const item of replay) {
-    const update = item.update;
-    switch (update.sessionUpdate) {
-      case "user_message_chunk": {
-        if (currentRole !== "user") flush();
-        currentRole = "user";
-        const chunk = update.content;
-        const text = chunk && !Array.isArray(chunk)
-          ? chunk.text
-          : undefined;
-        if (text) {
-          const last = currentParts[
-            currentParts.length - 1
-          ];
-          if (last?.type === "text") {
-            last.text += text;
-          } else {
-            currentParts.push({
-              type: "text", text,
-            });
-          }
-        }
-        break;
-      }
-      case "agent_message_chunk": {
-        if (currentRole !== "assistant") flush();
-        currentRole = "assistant";
-        const chunk = update.content;
-        const text = chunk && !Array.isArray(chunk)
-          ? chunk.text
-          : undefined;
-        if (text) {
-          const last = currentParts[
-            currentParts.length - 1
-          ];
-          if (last?.type === "text") {
-            last.text += text;
-          } else {
-            currentParts.push({
-              type: "text", text,
-            });
-          }
-        }
-        break;
-      }
-      case "tool_call": {
-        if (currentRole !== "assistant") flush();
-        currentRole = "assistant";
-        currentParts.push({
-          type: "tool-call",
-          toolCallId:
-            update.toolCallId ?? `tc_${Date.now()}`,
-          toolName: update.title ?? "tool",
-          args:
-            (update.rawInput as Record<
-              string, unknown
-            >) ?? {},
-        });
-        break;
-      }
-      case "tool_call_update": {
-        const tc = currentParts.find(
-          (p) =>
-            p.type === "tool-call" &&
-            p.toolCallId === update.toolCallId,
-        );
-        if (tc && tc.type === "tool-call") {
-          const raw = update.content;
-          if (
-            Array.isArray(raw) && raw.length > 0
-          ) {
-            const first = raw[0];
-            if (
-              first.type === "content" &&
-              first.content?.text
-            ) {
-              tc.result = first.content.text;
-            }
-          }
-          if (!tc.result && update.rawOutput) {
-            tc.result = update.rawOutput;
-          }
-        }
-        break;
-      }
-    }
-  }
-  flush();
-  return messages;
-}
 
 /**
  * ChatModelAdapter that bridges ACP IPC events into
@@ -391,7 +244,7 @@ function createAcpAdapter(
 export type ConnectResult = {
   sessionId: string;
   resumed: boolean;
-  replay?: AcpUpdate[];
+  cachedMessages: unknown[];
 };
 
 export function useAcpRuntime(
@@ -401,22 +254,50 @@ export function useAcpRuntime(
     connectResult.sessionId,
   );
 
-  // Parse replay into initial messages
+  // Use cached messages as initial messages
   const initialMessages = useMemo(() => {
-    if (
-      !connectResult.resumed ||
-      !connectResult.replay?.length
-    ) {
+    if (!connectResult.cachedMessages?.length) {
       return undefined;
     }
-    const parsed = parseReplay(connectResult.replay);
-    return parsed.length > 0 ? parsed : undefined;
+    const msgs =
+      connectResult.cachedMessages as ThreadMessageLike[];
+    return msgs.length > 0 ? msgs : undefined;
   }, []);
 
   const adapter = createAcpAdapter(sessionIdRef);
   const runtime = useLocalRuntime(adapter, {
     initialMessages,
   });
+
+  // Save messages after each prompt completes
+  useEffect(() => {
+    const cleanup = window.api.onAgentPromptComplete(
+      () => {
+        const state = runtime.thread.getState();
+        const msgs = state.messages.map((m: any) => ({
+          role: m.role,
+          content: m.content.map((p: any) => {
+            if (p.type === "text") {
+              return { type: "text", text: p.text };
+            }
+            if (p.type === "tool-call") {
+              return {
+                type: "tool-call",
+                toolCallId: p.toolCallId,
+                toolName: p.toolName,
+                argsText: p.argsText ?? "",
+                args: p.args,
+                result: p.result,
+              };
+            }
+            return p;
+          }),
+        }));
+        window.api.agentSaveMessages(msgs);
+      },
+    );
+    return cleanup;
+  }, [runtime]);
 
   return { runtime };
 }

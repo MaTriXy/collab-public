@@ -1,7 +1,9 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { Writable, Readable } from "node:stream";
-import { readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import {
+  readFile, writeFile, mkdir,
+} from "node:fs/promises";
+import { resolve, dirname } from "node:path";
 import { app, ipcMain, type BrowserWindow } from "electron";
 import {
   ClientSideConnection,
@@ -32,6 +34,41 @@ const sessions = new Map<string, AgentSession>();
 let shellWindow: BrowserWindow | null = null;
 let appConfig: AppConfig | null = null;
 
+function getMessageCachePath(): string {
+  return resolve(
+    app.getPath("home"),
+    ".collaborator",
+    "agent-messages.json",
+  );
+}
+
+async function loadCachedMessages(): Promise<unknown[]> {
+  try {
+    const raw = await readFile(
+      getMessageCachePath(), "utf-8",
+    );
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+async function saveCachedMessages(
+  messages: unknown[],
+): Promise<void> {
+  const path = getMessageCachePath();
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, JSON.stringify(messages));
+}
+
+async function clearCachedMessages(): Promise<void> {
+  try {
+    await writeFile(getMessageCachePath(), "[]");
+  } catch {
+    // ignore
+  }
+}
+
 function sendToRenderer(
   channel: string, ...args: unknown[]
 ): void {
@@ -40,24 +77,11 @@ function sendToRenderer(
   }
 }
 
-type ReplayCollector = {
-  messages: SessionNotification[];
-};
-
-let replayCollector: ReplayCollector | null = null;
-
 function createClient(): Client {
   return {
     async sessionUpdate(
       params: SessionNotification,
     ): Promise<void> {
-      // During loadSession, collect replayed messages
-      // instead of forwarding to renderer
-      if (replayCollector) {
-        replayCollector.messages.push(params);
-        return;
-      }
-
       sendToRenderer("agent:update", params);
     },
 
@@ -79,14 +103,18 @@ function createClient(): Client {
     async readTextFile(
       params: ReadTextFileRequest,
     ): Promise<ReadTextFileResponse> {
-      const content = await readFile(params.path, "utf-8");
+      const content = await readFile(
+        params.path, "utf-8",
+      );
       return { content };
     },
 
     async writeTextFile(
       params: WriteTextFileRequest,
     ): Promise<WriteTextFileResponse> {
-      await writeFile(params.path, params.content, "utf-8");
+      await writeFile(
+        params.path, params.content, "utf-8",
+      );
       return {};
     },
   };
@@ -117,7 +145,11 @@ function clearSessionPref(): void {
 
 async function spawnAndInitialize(
   cwd: string,
-): Promise<{ connection: ClientSideConnection; proc: ChildProcess }> {
+): Promise<{
+  connection: ClientSideConnection;
+  proc: ChildProcess;
+}> {
+  const t0 = performance.now();
   const bin = findAgentBinary();
   const proc = spawn(bin, [], {
     stdio: ["pipe", "pipe", "inherit"],
@@ -127,6 +159,9 @@ async function spawnAndInitialize(
       ACP_PERMISSION_MODE: "acceptEdits",
     },
   });
+  console.log(
+    `[acp-timing] spawn: ${(performance.now() - t0).toFixed(0)}ms`,
+  );
 
   const input = Writable.toWeb(
     proc.stdin!,
@@ -141,6 +176,7 @@ async function spawnAndInitialize(
     stream,
   );
 
+  const t1 = performance.now();
   await connection.initialize({
     protocolVersion: 1,
     clientCapabilities: {
@@ -152,6 +188,9 @@ async function spawnAndInitialize(
       version: "1.0.0",
     },
   });
+  console.log(
+    `[acp-timing] initialize: ${(performance.now() - t1).toFixed(0)}ms`,
+  );
 
   return { connection, proc };
 }
@@ -178,8 +217,11 @@ function registerSession(
 
 export async function spawnAgent(
   cwd: string,
-): Promise<{ sessionId: string; resumed: boolean }> {
-  // Try to resume a previous session
+): Promise<{
+  sessionId: string;
+  resumed: boolean;
+  cachedMessages: unknown[];
+}> {
   const savedId = appConfig
     ? (getPref(appConfig, PREF_SESSION_ID) as string)
     : null;
@@ -187,40 +229,54 @@ export async function spawnAgent(
     ? (getPref(appConfig, PREF_SESSION_CWD) as string)
     : null;
 
-  const { connection, proc } = await spawnAndInitialize(
-    cwd,
-  );
+  const tStart = performance.now();
+
+  // Load cached messages in parallel with spawning
+  const [{ connection, proc }, cachedMessages] =
+    await Promise.all([
+      spawnAndInitialize(cwd),
+      savedId ? loadCachedMessages() : [],
+    ]);
 
   if (savedId) {
     try {
-      replayCollector = { messages: [] };
-      await connection.loadSession({
+      const tResume = performance.now();
+      await (connection as any).unstable_resumeSession({
         sessionId: savedId,
         cwd: savedCwd ?? cwd,
-        mcpServers: [],
       });
-      const replay = replayCollector.messages;
-      replayCollector = null;
+      console.log(
+        `[acp-timing] resumeSession: ${(performance.now() - tResume).toFixed(0)}ms`,
+      );
+      console.log(
+        `[acp-timing] total (resume): ${(performance.now() - tStart).toFixed(0)}ms`,
+      );
       registerSession(savedId, connection, proc, cwd);
       return {
         sessionId: savedId,
         resumed: true,
-        replay,
+        cachedMessages,
       };
-    } catch (err) {
-      replayCollector = null;
+    } catch {
       clearSessionPref();
+      await clearCachedMessages();
     }
   }
 
-  // Fresh session
+  const tNew = performance.now();
   const session = await connection.newSession({
     cwd,
     mcpServers: [],
   });
+  console.log(
+    `[acp-timing] newSession: ${(performance.now() - tNew).toFixed(0)}ms`,
+  );
+  console.log(
+    `[acp-timing] total: ${(performance.now() - tStart).toFixed(0)}ms`,
+  );
   const sessionId = session.sessionId;
   registerSession(sessionId, connection, proc, cwd);
-  return { sessionId, resumed: false };
+  return { sessionId, resumed: false, cachedMessages: [] };
 }
 
 export async function promptAgent(
@@ -265,7 +321,6 @@ export function killAgent(sessionId: string): void {
   if (!session) return;
   session.process.kill();
   sessions.delete(sessionId);
-  // Don't clear prefs — allow resume on next start
 }
 
 export function killAllAgents(): void {
@@ -288,8 +343,7 @@ export function registerAgentIpc(
       _event: unknown,
       { cwd }: { cwd: string },
     ) => {
-      const result = await spawnAgent(cwd);
-      return result;
+      return await spawnAgent(cwd);
     },
   );
 
@@ -301,8 +355,6 @@ export function registerAgentIpc(
         sessionId: string; text: string;
       },
     ) => {
-      // Fire-and-forget: promptAgent streams updates
-      // via IPC notifications, resolves when done
       promptAgent(sessionId, text);
       return {};
     },
@@ -326,6 +378,17 @@ export function registerAgentIpc(
       { sessionId }: { sessionId: string },
     ) => {
       killAgent(sessionId);
+      return {};
+    },
+  );
+
+  ipcMain.handle(
+    "agent:save-messages",
+    async (
+      _event: unknown,
+      { messages }: { messages: unknown[] },
+    ) => {
+      await saveCachedMessages(messages);
       return {};
     },
   );

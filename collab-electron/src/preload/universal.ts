@@ -581,7 +581,7 @@ contextBridge.exposeInMainWorld("api", {
   ): Promise<{
     sessionId: string;
     resumed: boolean;
-    replay?: unknown[];
+    cachedMessages: unknown[];
   }> =>
     ipcRenderer.invoke("agent:spawn", { cwd }),
 
@@ -599,6 +599,13 @@ contextBridge.exposeInMainWorld("api", {
     sessionId: string,
   ): Promise<void> =>
     ipcRenderer.invoke("agent:kill", { sessionId }),
+
+  agentSaveMessages: (
+    messages: unknown[],
+  ): Promise<void> =>
+    ipcRenderer.invoke(
+      "agent:save-messages", { messages },
+    ),
 
   onAgentUpdate: (
     cb: (params: unknown) => void,
