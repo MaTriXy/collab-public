@@ -575,6 +575,82 @@ contextBridge.exposeInMainWorld("api", {
       }
     };
   },
+  // -- ACP agent --
+  agentSpawn: (
+    cwd: string,
+  ): Promise<{ sessionId: string }> =>
+    ipcRenderer.invoke("agent:spawn", { cwd }),
+
+  agentPrompt: (
+    sessionId: string, text: string,
+  ): Promise<void> =>
+    ipcRenderer.invoke("agent:prompt", { sessionId, text }),
+
+  agentCancel: (
+    sessionId: string,
+  ): Promise<void> =>
+    ipcRenderer.invoke("agent:cancel", { sessionId }),
+
+  agentKill: (
+    sessionId: string,
+  ): Promise<void> =>
+    ipcRenderer.invoke("agent:kill", { sessionId }),
+
+  onAgentUpdate: (
+    cb: (params: unknown) => void,
+  ) => {
+    const handler = (
+      _event: unknown, params: unknown,
+    ) => cb(params);
+    ipcRenderer.on("agent:update", handler);
+    return () =>
+      ipcRenderer.removeListener("agent:update", handler);
+  },
+
+  onAgentPromptComplete: (
+    cb: (data: {
+      sessionId: string;
+      stopReason: string;
+    }) => void,
+  ) => {
+    const handler = (
+      _event: unknown,
+      data: { sessionId: string; stopReason: string },
+    ) => cb(data);
+    ipcRenderer.on("agent:prompt-complete", handler);
+    return () =>
+      ipcRenderer.removeListener(
+        "agent:prompt-complete", handler,
+      );
+  },
+
+  onAgentPromptError: (
+    cb: (data: {
+      sessionId: string; error: string;
+    }) => void,
+  ) => {
+    const handler = (
+      _event: unknown,
+      data: { sessionId: string; error: string },
+    ) => cb(data);
+    ipcRenderer.on("agent:prompt-error", handler);
+    return () =>
+      ipcRenderer.removeListener(
+        "agent:prompt-error", handler,
+      );
+  },
+
+  onAgentExit: (
+    cb: (data: { sessionId: string }) => void,
+  ) => {
+    const handler = (
+      _event: unknown,
+      data: { sessionId: string },
+    ) => cb(data);
+    ipcRenderer.on("agent:exit", handler);
+    return () =>
+      ipcRenderer.removeListener("agent:exit", handler);
+  },
 });
 
 // Forward ctrl+wheel (trackpad pinch) from tile webviews to the canvas

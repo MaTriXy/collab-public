@@ -1,0 +1,41 @@
+@import "@assistant-ui/react-markdown/styles/dot.css";
+
+.aui-md {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.aui-md pre {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  font-size: 12px;
+}
+
+.aui-md code:not(pre code) {
+  background: var(--card);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 12px;
+  color: var(--code);
+}
+
+.aui-md table {
+  border-collapse: collapse;
+  font-size: 12px;
+  width: 100%;
+}
+
+.aui-md th,
+.aui-md td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  text-align: left;
+}
+
+.aui-md th {
+  background: var(--card);
+  font-weight: 600;
+}

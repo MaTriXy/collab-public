@@ -236,30 +236,18 @@ async function init() {
 	});
 	panelManager.initPrefs(prefNavWidth, prefSidebarMode);
 
-	let agentTermWebview = null;
-	let agentPtySessionId = prefAgentPty || null;
+	let agentChatWebview = null;
 
-	function ensureAgentTerminal() {
-		if (agentTermWebview) return;
+	function ensureAgentChat() {
+		if (agentChatWebview) return;
 
-		const termConfig = configs.terminalTile;
-		const params = new URLSearchParams();
-		params.set("tileId", "agent");
-
-		if (agentPtySessionId) {
-			params.set("sessionId", agentPtySessionId);
-			params.set("restored", "1");
-		} else {
-			const homeDir = window.shellApi.getHomePath?.() || "~";
-			params.set("cwd", `${homeDir}/.collaborator`);
-		}
-
-		const qs = params.toString();
+		const chatConfig = configs.agentChat;
+		const homeDir = window.shellApi.getHomePath?.() || "~";
+		const cwd = `${homeDir}/.collaborator`;
+		const src = `${chatConfig.src}?cwd=${encodeURIComponent(cwd)}`;
 		const wv = document.createElement("webview");
-		wv.setAttribute(
-			"src", `${termConfig.src}?${qs}`,
-		);
-		wv.setAttribute("preload", termConfig.preload);
+		wv.setAttribute("src", src);
+		wv.setAttribute("preload", chatConfig.preload);
 		wv.setAttribute(
 			"webpreferences", "contextIsolation=yes, sandbox=yes",
 		);
@@ -281,18 +269,10 @@ async function init() {
 			}
 		});
 
-		wv.addEventListener("ipc-message", (event) => {
-			if (event.channel === "pty-session-id") {
-				agentPtySessionId = event.args[0];
-				window.shellApi.setPref(
-					"agent-pty-session", agentPtySessionId,
-				);
-			}
-		});
-
 		wv.addEventListener("console-message", (event) => {
 			window.shellApi.logFromWebview(
-				"agent-term", event.level, event.message, event.sourceId,
+				"agent-chat", event.level,
+				event.message, event.sourceId,
 			);
 		});
 
@@ -301,13 +281,33 @@ async function init() {
 		});
 
 		panelAgent.appendChild(wv);
-		agentTermWebview = {
+		agentChatWebview = {
 			webview: wv,
 			send(ch, ...args) {
 				if (ready) wv.send(ch, ...args);
 				else pendingMessages.push([ch, args]);
 			},
 		};
+
+		// Forward agent IPC from shell to the chat webview
+		window.shellApi.onAgentUpdate((data) => {
+			console.log("[shell] forwarding agent:update",
+				data?.update?.sessionUpdate);
+			agentChatWebview.send("agent:update", data);
+		});
+		window.shellApi.onAgentPromptComplete((data) => {
+			agentChatWebview.send(
+				"agent:prompt-complete", data,
+			);
+		});
+		window.shellApi.onAgentPromptError((data) => {
+			agentChatWebview.send(
+				"agent:prompt-error", data,
+			);
+		});
+		window.shellApi.onAgentExit((data) => {
+			agentChatWebview.send("agent:exit", data);
+		});
 	}
 
 	const agentPanel = createPanel("agent", {
@@ -324,9 +324,9 @@ async function init() {
 		onVisibilityChanged(visible) {
 			panelViewer.classList.toggle("agent-open", visible);
 			if (visible) {
-				ensureAgentTerminal();
-				if (agentTermWebview) {
-					agentTermWebview.webview.focus();
+				ensureAgentChat();
+				if (agentChatWebview) {
+					agentChatWebview.webview.focus();
 					noteSurfaceFocus("agent");
 				}
 			} else {
@@ -463,8 +463,8 @@ async function init() {
 			"canvas-opacity", opacity,
 		);
 		tileListWebview.send("canvas-opacity", opacity);
-		if (agentTermWebview) {
-			agentTermWebview.send("canvas-opacity", opacity);
+		if (agentChatWebview) {
+			agentChatWebview.send("canvas-opacity", opacity);
 		}
 	};
 	broadcastCanvasOpacity();
@@ -668,8 +668,8 @@ async function init() {
 			}
 		}
 
-		if (surface === "agent" && agentTermWebview && agentPanel.isVisible()) {
-			agentTermWebview.webview.focus();
+		if (surface === "agent" && agentChatWebview && agentPanel.isVisible()) {
+			agentChatWebview.webview.focus();
 			noteSurfaceFocus("agent");
 			return;
 		}
@@ -710,7 +710,7 @@ async function init() {
 		agentToggle.blur();
 		singletonViewer.webview.blur();
 		workspaceManager.getNavWebview().webview.blur();
-		if (agentTermWebview) agentTermWebview.webview.blur();
+		if (agentChatWebview) agentChatWebview.webview.blur();
 	}
 
 	// -- getAllWebviews aggregator --
@@ -720,7 +720,7 @@ async function init() {
 		all.push(singletonViewer);
 		all.push(tileListWebview);
 		all.push(singletonWebviews.settings);
-		if (agentTermWebview) all.push(agentTermWebview);
+		if (agentChatWebview) all.push(agentChatWebview);
 		for (const [, dom] of tileManager.getTileDOMs()) {
 			if (dom.webview) {
 				all.push({
