@@ -61,19 +61,21 @@ function Composer() {
 export function AgentThread() {
   return (
     <ThreadPrimitive.Root
-      className="flex h-full flex-col bg-background text-foreground"
+      className="flex h-full flex-col px-4 pb-4 text-foreground"
     >
       <ThreadPrimitive.Viewport
-        className="scrollbar-hover flex flex-1 flex-col gap-4 overflow-y-auto px-4 pt-4 pb-2"
+        className="scrollbar-hover min-h-0 flex flex-1 flex-col overflow-y-auto px-3 pt-4"
       >
-        <ThreadPrimitive.Messages
-          components={{
-            UserMessage,
-            AssistantMessage,
-          }}
-        />
+        <div className="flex flex-col gap-4">
+          <ThreadPrimitive.Messages
+            components={{
+              UserMessage,
+              AssistantMessage,
+            }}
+          />
+        </div>
       </ThreadPrimitive.Viewport>
-      <div className="border-t border-border px-4 py-3">
+      <div className="">
         <Composer />
       </div>
     </ThreadPrimitive.Root>

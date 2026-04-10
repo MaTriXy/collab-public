@@ -15,6 +15,9 @@ import {
   type WriteTextFileResponse,
   type SessionNotification,
 } from "@agentclientprotocol/sdk";
+import {
+  getPref, setPref, type AppConfig,
+} from "./config";
 
 type AgentSession = {
   sessionId: string;
@@ -22,8 +25,12 @@ type AgentSession = {
   process: ChildProcess;
 };
 
+const PREF_SESSION_ID = "agent-acp-session-id";
+const PREF_SESSION_CWD = "agent-acp-session-cwd";
+
 const sessions = new Map<string, AgentSession>();
 let shellWindow: BrowserWindow | null = null;
+let appConfig: AppConfig | null = null;
 
 function sendToRenderer(
   channel: string, ...args: unknown[]
@@ -32,6 +39,12 @@ function sendToRenderer(
     shellWindow.webContents.send(channel, ...args);
   }
 }
+
+type ReplayCollector = {
+  messages: SessionNotification[];
+};
+
+let replayCollector: ReplayCollector | null = null;
 
 function createClient(): Client {
   return {
@@ -43,6 +56,14 @@ function createClient(): Client {
       console.log(
         `[acp] sessionUpdate: ${kind}`,
       );
+
+      // During loadSession, collect replayed messages
+      // instead of forwarding to renderer
+      if (replayCollector) {
+        replayCollector.messages.push(params);
+        return;
+      }
+
       sendToRenderer("agent:update", params);
     },
 
@@ -86,9 +107,23 @@ function findAgentBinary(): string {
   );
 }
 
-export async function spawnAgent(
+function saveSessionPref(
+  sessionId: string, cwd: string,
+): void {
+  if (!appConfig) return;
+  setPref(appConfig, PREF_SESSION_ID, sessionId);
+  setPref(appConfig, PREF_SESSION_CWD, cwd);
+}
+
+function clearSessionPref(): void {
+  if (!appConfig) return;
+  setPref(appConfig, PREF_SESSION_ID, null);
+  setPref(appConfig, PREF_SESSION_CWD, null);
+}
+
+async function spawnAndInitialize(
   cwd: string,
-): Promise<string> {
+): Promise<{ connection: ClientSideConnection; proc: ChildProcess }> {
   const bin = findAgentBinary();
   const proc = spawn(bin, [], {
     stdio: ["pipe", "pipe", "inherit"],
@@ -124,24 +159,85 @@ export async function spawnAgent(
     },
   });
 
-  const session = await connection.newSession({
-    cwd,
-    mcpServers: [],
-  });
-  const sessionId = session.sessionId;
+  return { connection, proc };
+}
 
+function registerSession(
+  sessionId: string,
+  connection: ClientSideConnection,
+  proc: ChildProcess,
+  cwd: string,
+): void {
   sessions.set(sessionId, {
     sessionId,
     connection,
     process: proc,
   });
 
+  saveSessionPref(sessionId, cwd);
+
   proc.on("exit", () => {
     sessions.delete(sessionId);
     sendToRenderer("agent:exit", { sessionId });
   });
+}
 
-  return sessionId;
+export async function spawnAgent(
+  cwd: string,
+): Promise<{ sessionId: string; resumed: boolean }> {
+  // Try to resume a previous session
+  const savedId = appConfig
+    ? (getPref(appConfig, PREF_SESSION_ID) as string)
+    : null;
+  const savedCwd = appConfig
+    ? (getPref(appConfig, PREF_SESSION_CWD) as string)
+    : null;
+
+  const { connection, proc } = await spawnAndInitialize(
+    cwd,
+  );
+
+  if (savedId) {
+    try {
+      console.log(
+        `[acp] attempting loadSession: ${savedId}`,
+      );
+      replayCollector = { messages: [] };
+      await connection.loadSession({
+        sessionId: savedId,
+        cwd: savedCwd ?? cwd,
+        mcpServers: [],
+      });
+      const replay = replayCollector.messages;
+      replayCollector = null;
+      console.log(
+        `[acp] session resumed, ${replay.length} updates replayed`,
+      );
+      registerSession(savedId, connection, proc, cwd);
+      return {
+        sessionId: savedId,
+        resumed: true,
+        replay,
+      };
+    } catch (err) {
+      replayCollector = null;
+      console.log(
+        "[acp] loadSession failed, starting fresh:",
+        (err as Error).message,
+      );
+      clearSessionPref();
+    }
+  }
+
+  // Fresh session
+  const session = await connection.newSession({
+    cwd,
+    mcpServers: [],
+  });
+  const sessionId = session.sessionId;
+  console.log(`[acp] new session: ${sessionId}`);
+  registerSession(sessionId, connection, proc, cwd);
+  return { sessionId, resumed: false };
 }
 
 export async function promptAgent(
@@ -189,6 +285,7 @@ export function killAgent(sessionId: string): void {
   if (!session) return;
   session.process.kill();
   sessions.delete(sessionId);
+  // Don't clear prefs — allow resume on next start
 }
 
 export function killAllAgents(): void {
@@ -200,8 +297,10 @@ export function killAllAgents(): void {
 
 export function registerAgentIpc(
   win: BrowserWindow,
+  cfg: AppConfig,
 ): void {
   shellWindow = win;
+  appConfig = cfg;
 
   ipcMain.handle(
     "agent:spawn",
@@ -209,8 +308,8 @@ export function registerAgentIpc(
       _event: unknown,
       { cwd }: { cwd: string },
     ) => {
-      const sessionId = await spawnAgent(cwd);
-      return { sessionId };
+      const result = await spawnAgent(cwd);
+      return result;
     },
   );
 

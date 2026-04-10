@@ -578,7 +578,11 @@ contextBridge.exposeInMainWorld("api", {
   // -- ACP agent --
   agentSpawn: (
     cwd: string,
-  ): Promise<{ sessionId: string }> =>
+  ): Promise<{
+    sessionId: string;
+    resumed: boolean;
+    replay?: unknown[];
+  }> =>
     ipcRenderer.invoke("agent:spawn", { cwd }),
 
   agentPrompt: (

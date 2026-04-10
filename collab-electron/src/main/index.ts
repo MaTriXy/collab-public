@@ -832,7 +832,7 @@ app.whenReady().then(async () => {
 
   buildAppMenu();
   createWindow();
-  registerAgentIpc(mainWindow!);
+  registerAgentIpc(mainWindow!, config);
   registerToggleShortcuts(mainWindow!);
 
   initMainAnalytics();

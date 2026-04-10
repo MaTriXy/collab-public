@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import {
   useLocalRuntime,
   type ChatModelAdapter,
   type ChatModelRunResult,
 } from "@assistant-ui/react";
 
-type AcpUpdate = {
+export type AcpUpdate = {
   sessionId: string;
   update: {
     sessionUpdate: string;
@@ -29,7 +29,11 @@ declare global {
     api: {
       agentSpawn: (
         cwd: string,
-      ) => Promise<{ sessionId: string }>;
+      ) => Promise<{
+        sessionId: string;
+        resumed: boolean;
+        replay?: AcpUpdate[];
+      }>;
       agentPrompt: (
         sessionId: string, text: string,
       ) => Promise<void>;
@@ -67,6 +71,133 @@ export type AgentStatus =
   | "connecting"
   | "ready"
   | "error";
+
+type ThreadMessageLike = {
+  role: "user" | "assistant";
+  content: Array<
+    | { type: "text"; text: string }
+    | {
+      type: "tool-call";
+      toolCallId: string;
+      toolName: string;
+      args: Record<string, unknown>;
+      result?: unknown;
+    }
+  >;
+};
+
+/**
+ * Parse ACP session replay notifications into
+ * ThreadMessageLike messages for the UI.
+ */
+function parseReplay(
+  replay: AcpUpdate[],
+): ThreadMessageLike[] {
+  const messages: ThreadMessageLike[] = [];
+  let currentParts: ThreadMessageLike["content"] = [];
+  let currentRole: "user" | "assistant" | null = null;
+
+  function flush() {
+    if (currentRole && currentParts.length > 0) {
+      messages.push({
+        role: currentRole,
+        content: [...currentParts],
+      });
+    }
+    currentParts = [];
+    currentRole = null;
+  }
+
+  for (const item of replay) {
+    const update = item.update;
+    switch (update.sessionUpdate) {
+      case "user_message_chunk": {
+        if (currentRole !== "user") flush();
+        currentRole = "user";
+        const chunk = update.content;
+        const text = chunk && !Array.isArray(chunk)
+          ? chunk.text
+          : undefined;
+        if (text) {
+          const last = currentParts[
+            currentParts.length - 1
+          ];
+          if (last?.type === "text") {
+            last.text += text;
+          } else {
+            currentParts.push({
+              type: "text", text,
+            });
+          }
+        }
+        break;
+      }
+      case "agent_message_chunk": {
+        if (currentRole !== "assistant") flush();
+        currentRole = "assistant";
+        const chunk = update.content;
+        const text = chunk && !Array.isArray(chunk)
+          ? chunk.text
+          : undefined;
+        if (text) {
+          const last = currentParts[
+            currentParts.length - 1
+          ];
+          if (last?.type === "text") {
+            last.text += text;
+          } else {
+            currentParts.push({
+              type: "text", text,
+            });
+          }
+        }
+        break;
+      }
+      case "tool_call": {
+        if (currentRole !== "assistant") flush();
+        currentRole = "assistant";
+        currentParts.push({
+          type: "tool-call",
+          toolCallId:
+            update.toolCallId ?? `tc_${Date.now()}`,
+          toolName: update.title ?? "tool",
+          args:
+            (update.rawInput as Record<
+              string, unknown
+            >) ?? {},
+        });
+        break;
+      }
+      case "tool_call_update": {
+        const tc = currentParts.find(
+          (p) =>
+            p.type === "tool-call" &&
+            p.toolCallId === update.toolCallId,
+        );
+        if (tc && tc.type === "tool-call") {
+          const raw = update.content;
+          if (
+            Array.isArray(raw) && raw.length > 0
+          ) {
+            const first = raw[0];
+            if (
+              first.type === "content" &&
+              first.content?.text
+            ) {
+              tc.result = first.content.text;
+            }
+          }
+          if (!tc.result && update.rawOutput) {
+            tc.result = update.rawOutput;
+          }
+        }
+        break;
+      }
+    }
+  }
+  flush();
+  return messages;
+}
 
 /**
  * ChatModelAdapter that bridges ACP IPC events into
@@ -231,42 +362,38 @@ function createAcpAdapter(
   };
 }
 
-export function useAcpRuntime() {
-  const [status, setStatus] = useState<AgentStatus>("idle");
-  const [error, setError] = useState<string | null>(null);
-  const sessionIdRef = useRef<string | null>(null);
+export type ConnectResult = {
+  sessionId: string;
+  resumed: boolean;
+  replay?: AcpUpdate[];
+};
 
-  const adapter = createAcpAdapter(sessionIdRef);
-  const runtime = useLocalRuntime(adapter);
+export function useAcpRuntime(
+  connectResult: ConnectResult,
+) {
+  const sessionIdRef = useRef<string | null>(
+    connectResult.sessionId,
+  );
 
-  // Connect to agent on mount
-  useEffect(() => {
-    let cancelled = false;
-
-    async function connect() {
-      setStatus("connecting");
-      try {
-        const params = new URLSearchParams(
-          window.location.search,
-        );
-        const cwd = params.get("cwd") || ".";
-        const result = await window.api.agentSpawn(cwd);
-        if (cancelled) return;
-        sessionIdRef.current = result.sessionId;
-        setStatus("ready");
-      } catch (err: unknown) {
-        if (cancelled) return;
-        const msg = err instanceof Error
-          ? err.message
-          : "Failed to connect";
-        setError(msg);
-        setStatus("error");
-      }
+  // Parse replay into initial messages
+  const initialMessages = useMemo(() => {
+    if (
+      !connectResult.resumed ||
+      !connectResult.replay?.length
+    ) {
+      return undefined;
     }
-
-    connect();
-    return () => { cancelled = true; };
+    const parsed = parseReplay(connectResult.replay);
+    console.log(
+      `[agent-chat] initialMessages: ${parsed.length}`,
+    );
+    return parsed.length > 0 ? parsed : undefined;
   }, []);
 
-  return { runtime, status, error };
+  const adapter = createAcpAdapter(sessionIdRef);
+  const runtime = useLocalRuntime(adapter, {
+    initialMessages,
+  });
+
+  return { runtime };
 }
