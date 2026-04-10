@@ -384,9 +384,6 @@ export function useAcpRuntime(
       return undefined;
     }
     const parsed = parseReplay(connectResult.replay);
-    console.log(
-      `[agent-chat] initialMessages: ${parsed.length}`,
-    );
     return parsed.length > 0 ? parsed : undefined;
   }, []);
 

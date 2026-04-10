@@ -1,45 +1,104 @@
 import { makeAssistantToolUI } from "@assistant-ui/react";
+import {
+  Terminal,
+  FileText,
+  Pencil,
+  Search,
+  Globe,
+  Wrench,
+  Check,
+  Loader2,
+} from "lucide-react";
+
+const TOOL_ICONS: Record<
+  string, React.ComponentType<{ size: number }>
+> = {
+  bash: Terminal,
+  Bash: Terminal,
+  read_file: FileText,
+  Read: FileText,
+  edit_file: Pencil,
+  Edit: Pencil,
+  Write: Pencil,
+  search: Search,
+  Grep: Search,
+  Glob: Search,
+  web: Globe,
+  WebSearch: Globe,
+  WebFetch: Globe,
+};
+
+function getIcon(toolName: string) {
+  return TOOL_ICONS[toolName] ?? Wrench;
+}
+
+function getLabel(toolName: string, args: unknown): string {
+  if (!args || typeof args !== "object") return toolName;
+  const a = args as Record<string, unknown>;
+
+  if (a.command && typeof a.command === "string") {
+    return a.command.length > 60
+      ? a.command.slice(0, 57) + "..."
+      : a.command;
+  }
+  if (a.path && typeof a.path === "string") {
+    const parts = (a.path as string).split("/");
+    return parts[parts.length - 1] ?? toolName;
+  }
+  if (a.file_path && typeof a.file_path === "string") {
+    const parts = (a.file_path as string).split("/");
+    return parts[parts.length - 1] ?? toolName;
+  }
+  if (a.pattern && typeof a.pattern === "string") {
+    return `/${a.pattern}/`;
+  }
+  return toolName;
+}
 
 export const FallbackToolUI = makeAssistantToolUI({
   toolName: "*",
-  render: ({ args, result, status }) => {
-    const toolName =
-      args && typeof args === "object" && "command" in args
-        ? "bash"
-        : "tool";
+  render: ({ toolName, args, result, status }) => {
+    const Icon = getIcon(toolName);
+    const label = getLabel(toolName, args);
+    const isRunning = status.type === "running";
 
     return (
-      <div
-        className="my-2 rounded-lg border border-border bg-card p-3 font-mono text-xs"
+      <details
+        className="my-1 rounded-lg border border-border bg-card text-xs"
       >
-        <div className="mb-1 flex items-center gap-2 text-muted-foreground">
-          <span
-            className="inline-block h-2 w-2 rounded-full"
-            style={{
-              background:
-                status.type === "running" ? "#f59e0b" : "#22c55e",
-            }}
-          />
-          <span>{toolName}</span>
-        </div>
-        {args && (
-          <pre className="whitespace-pre-wrap break-all opacity-80">
-            {JSON.stringify(args, null, 2)}
-          </pre>
-        )}
-        {result !== undefined && (
-          <details className="mt-2">
-            <summary className="cursor-pointer text-muted-foreground">
-              Result
-            </summary>
-            <pre className="mt-1 whitespace-pre-wrap break-all">
-              {typeof result === "string"
-                ? result
-                : JSON.stringify(result, null, 2)}
+        <summary
+          className="flex cursor-pointer items-center gap-2 px-3 py-2 text-muted-foreground select-none"
+        >
+          {isRunning ? (
+            <Loader2 size={12} className="animate-spin" />
+          ) : (
+            <Check
+              size={12}
+              className="text-green-500"
+            />
+          )}
+          <Icon size={12} />
+          <span className="font-mono truncate">
+            {label}
+          </span>
+        </summary>
+        <div className="border-t border-border px-3 py-2">
+          {args && (
+            <pre className="whitespace-pre-wrap break-all font-mono opacity-80">
+              {JSON.stringify(args, null, 2)}
             </pre>
-          </details>
-        )}
-      </div>
+          )}
+          {result !== undefined && (
+            <div className="mt-2 border-t border-border pt-2">
+              <pre className="whitespace-pre-wrap break-all font-mono opacity-70">
+                {typeof result === "string"
+                  ? result
+                  : JSON.stringify(result, null, 2)}
+              </pre>
+            </div>
+          )}
+        </div>
+      </details>
     );
   },
 });

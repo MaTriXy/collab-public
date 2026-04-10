@@ -291,8 +291,6 @@ async function init() {
 
 		// Forward agent IPC from shell to the chat webview
 		window.shellApi.onAgentUpdate((data) => {
-			console.log("[shell] forwarding agent:update",
-				data?.update?.sessionUpdate);
 			agentChatWebview.send("agent:update", data);
 		});
 		window.shellApi.onAgentPromptComplete((data) => {

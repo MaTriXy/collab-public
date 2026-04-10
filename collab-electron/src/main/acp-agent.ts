@@ -51,12 +51,6 @@ function createClient(): Client {
     async sessionUpdate(
       params: SessionNotification,
     ): Promise<void> {
-      const kind =
-        (params as any).update?.sessionUpdate ?? "unknown";
-      console.log(
-        `[acp] sessionUpdate: ${kind}`,
-      );
-
       // During loadSession, collect replayed messages
       // instead of forwarding to renderer
       if (replayCollector) {
@@ -199,9 +193,6 @@ export async function spawnAgent(
 
   if (savedId) {
     try {
-      console.log(
-        `[acp] attempting loadSession: ${savedId}`,
-      );
       replayCollector = { messages: [] };
       await connection.loadSession({
         sessionId: savedId,
@@ -210,9 +201,6 @@ export async function spawnAgent(
       });
       const replay = replayCollector.messages;
       replayCollector = null;
-      console.log(
-        `[acp] session resumed, ${replay.length} updates replayed`,
-      );
       registerSession(savedId, connection, proc, cwd);
       return {
         sessionId: savedId,
@@ -221,10 +209,6 @@ export async function spawnAgent(
       };
     } catch (err) {
       replayCollector = null;
-      console.log(
-        "[acp] loadSession failed, starting fresh:",
-        (err as Error).message,
-      );
       clearSessionPref();
     }
   }
@@ -235,7 +219,6 @@ export async function spawnAgent(
     mcpServers: [],
   });
   const sessionId = session.sessionId;
-  console.log(`[acp] new session: ${sessionId}`);
   registerSession(sessionId, connection, proc, cwd);
   return { sessionId, resumed: false };
 }
@@ -254,9 +237,6 @@ export async function promptAgent(
       sessionId,
       prompt: [{ type: "text", text }],
     });
-    console.log(
-      `[acp] prompt complete: ${result.stopReason}`,
-    );
     sendToRenderer("agent:prompt-complete", {
       sessionId,
       stopReason: result.stopReason,

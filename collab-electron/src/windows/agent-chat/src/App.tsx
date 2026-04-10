@@ -23,9 +23,6 @@ export default function App() {
         const cwd = params.get("cwd") || ".";
         const result = await window.api.agentSpawn(cwd);
         if (cancelled) return;
-        console.log(
-          `[agent-chat] connected, resumed=${result.resumed}, replay=${result.replay?.length ?? 0}`,
-        );
         setConnectResult(result as ConnectResult);
       } catch (err: unknown) {
         if (cancelled) return;
