@@ -120,13 +120,34 @@ function createClient(): Client {
   };
 }
 
-function findAgentBinary(): string {
-  const base = app.isPackaged
-    ? resolve(app.getAppPath(), "..")
-    : resolve(app.getAppPath());
-  return resolve(
-    base, "node_modules/.bin/claude-agent-acp",
-  );
+function findAgentCommand(): {
+  command: string;
+  args: string[];
+  extraEnv: Record<string, string>;
+} {
+  if (app.isPackaged) {
+    // In production the .bin symlink is stripped by electron-builder,
+    // but the package itself lives inside app.asar. Run Electron in
+    // node mode against the package's entry script — Electron's asar
+    // patch lets the child read it directly.
+    const script = resolve(
+      app.getAppPath(),
+      "node_modules/@agentclientprotocol/claude-agent-acp/dist/index.js",
+    );
+    return {
+      command: process.execPath,
+      args: [script],
+      extraEnv: { ELECTRON_RUN_AS_NODE: "1" },
+    };
+  }
+  return {
+    command: resolve(
+      app.getAppPath(),
+      "node_modules/.bin/claude-agent-acp",
+    ),
+    args: [],
+    extraEnv: {},
+  };
 }
 
 function saveSessionPref(
@@ -150,12 +171,13 @@ async function spawnAndInitialize(
   proc: ChildProcess;
 }> {
   const t0 = performance.now();
-  const bin = findAgentBinary();
-  const proc = spawn(bin, [], {
+  const { command, args, extraEnv } = findAgentCommand();
+  const proc = spawn(command, args, {
     stdio: ["pipe", "pipe", "inherit"],
     cwd,
     env: {
       ...process.env,
+      ...extraEnv,
       ACP_PERMISSION_MODE: "acceptEdits",
     },
   });
