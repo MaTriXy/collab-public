@@ -83,7 +83,7 @@ async function init() {
 		configs, workspaceData,
 		prefNavWidth, prefSidebarMode,
 		prefAgentWidth, prefAgentMode,
-		prefAgentPty,
+		prefAgentPty, prefSidebarAgentGui,
 		prefLastTerminalCwd,
 		prefLastTerminalSize,
 	] = await Promise.all([
@@ -94,6 +94,7 @@ async function init() {
 		window.shellApi.getPref("panel-width-agent"),
 		window.shellApi.getPref("sidebar-mode-agent"),
 		window.shellApi.getPref("agent-pty-session"),
+		window.shellApi.getPref("sidebar-agent-gui"),
 		window.shellApi.getPref("lastTerminalCwd"),
 		window.shellApi.getPref("lastTerminalSize"),
 	]);
@@ -236,10 +237,75 @@ async function init() {
 	});
 	panelManager.initPrefs(prefNavWidth, prefSidebarMode);
 
-	let agentChatWebview = null;
+	const useAgentGui = prefSidebarAgentGui === true;
+	let agentWebview = null;
+
+	let agentPtySessionId = prefAgentPty || null;
+
+	function ensureAgentTerminal() {
+		if (agentWebview) return;
+
+		const termConfig = configs.terminalTile;
+		const params = new URLSearchParams();
+		params.set("tileId", "agent");
+
+		if (agentPtySessionId) {
+			params.set("sessionId", agentPtySessionId);
+			params.set("restored", "1");
+		} else {
+			const homeDir = window.shellApi.getHomePath?.() || "~";
+			params.set("cwd", `${homeDir}/.collaborator`);
+		}
+
+		const qs = params.toString();
+		const wv = document.createElement("webview");
+		wv.setAttribute(
+			"src", `${termConfig.src}?${qs}`,
+		);
+		wv.setAttribute("preload", termConfig.preload);
+		wv.setAttribute(
+			"webpreferences", "contextIsolation=yes, sandbox=yes",
+		);
+		wv.classList.add("agent-terminal");
+		wv.style.flex = "1";
+		wv.style.border = "none";
+
+		wv.addEventListener("dom-ready", () => {
+			if (agentPanel.isVisible()) {
+				wv.focus();
+				noteSurfaceFocus("agent");
+			}
+		});
+
+		wv.addEventListener("ipc-message", (event) => {
+			if (event.channel === "pty-session-id") {
+				agentPtySessionId = event.args[0];
+				window.shellApi.setPref(
+					"agent-pty-session", agentPtySessionId,
+				);
+			}
+		});
+
+		wv.addEventListener("console-message", (event) => {
+			window.shellApi.logFromWebview(
+				"agent-term", event.level,
+				event.message, event.sourceId,
+			);
+		});
+
+		wv.addEventListener("focus", () => {
+			noteSurfaceFocus("agent");
+		});
+
+		panelAgent.appendChild(wv);
+		agentWebview = {
+			webview: wv,
+			send(ch, ...args) { wv.send(ch, ...args); },
+		};
+	}
 
 	function ensureAgentChat() {
-		if (agentChatWebview) return;
+		if (agentWebview) return;
 
 		const chatConfig = configs.agentChat;
 		const homeDir = window.shellApi.getHomePath?.() || "~";
@@ -281,7 +347,7 @@ async function init() {
 		});
 
 		panelAgent.appendChild(wv);
-		agentChatWebview = {
+		agentWebview = {
 			webview: wv,
 			send(ch, ...args) {
 				if (ready) wv.send(ch, ...args);
@@ -291,28 +357,28 @@ async function init() {
 
 		// Forward agent IPC from shell to the chat webview
 		window.shellApi.onAgentUpdate((data) => {
-			agentChatWebview.send("agent:update", data);
+			agentWebview.send("agent:update", data);
 		});
 		window.shellApi.onAgentPromptComplete((data) => {
-			agentChatWebview.send(
+			agentWebview.send(
 				"agent:prompt-complete", data,
 			);
 		});
 		window.shellApi.onAgentPromptError((data) => {
-			agentChatWebview.send(
+			agentWebview.send(
 				"agent:prompt-error", data,
 			);
 		});
 		window.shellApi.onAgentExit((data) => {
-			agentChatWebview.send("agent:exit", data);
+			agentWebview.send("agent:exit", data);
 		});
 		window.shellApi.onAgentSessionReady((data) => {
-			agentChatWebview.send(
+			agentWebview.send(
 				"agent:session-ready", data,
 			);
 		});
 		window.shellApi.onAgentSessionFailed((data) => {
-			agentChatWebview.send(
+			agentWebview.send(
 				"agent:session-failed", data,
 			);
 		});
@@ -332,9 +398,10 @@ async function init() {
 		onVisibilityChanged(visible) {
 			panelViewer.classList.toggle("agent-open", visible);
 			if (visible) {
-				ensureAgentChat();
-				if (agentChatWebview) {
-					agentChatWebview.webview.focus();
+				if (useAgentGui) ensureAgentChat();
+				else ensureAgentTerminal();
+				if (agentWebview) {
+					agentWebview.webview.focus();
 					noteSurfaceFocus("agent");
 				}
 			} else {
@@ -471,8 +538,8 @@ async function init() {
 			"canvas-opacity", opacity,
 		);
 		tileListWebview.send("canvas-opacity", opacity);
-		if (agentChatWebview) {
-			agentChatWebview.send("canvas-opacity", opacity);
+		if (agentWebview) {
+			agentWebview.send("canvas-opacity", opacity);
 		}
 	};
 	broadcastCanvasOpacity();
@@ -676,8 +743,8 @@ async function init() {
 			}
 		}
 
-		if (surface === "agent" && agentChatWebview && agentPanel.isVisible()) {
-			agentChatWebview.webview.focus();
+		if (surface === "agent" && agentWebview && agentPanel.isVisible()) {
+			agentWebview.webview.focus();
 			noteSurfaceFocus("agent");
 			return;
 		}
@@ -718,7 +785,7 @@ async function init() {
 		agentToggle.blur();
 		singletonViewer.webview.blur();
 		workspaceManager.getNavWebview().webview.blur();
-		if (agentChatWebview) agentChatWebview.webview.blur();
+		if (agentWebview) agentWebview.webview.blur();
 	}
 
 	// -- getAllWebviews aggregator --
@@ -728,7 +795,7 @@ async function init() {
 		all.push(singletonViewer);
 		all.push(tileListWebview);
 		all.push(singletonWebviews.settings);
-		if (agentChatWebview) all.push(agentChatWebview);
+		if (agentWebview) all.push(agentWebview);
 		for (const [, dom] of tileManager.getTileDOMs()) {
 			if (dom.webview) {
 				all.push({
