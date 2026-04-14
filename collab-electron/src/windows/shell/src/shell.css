@@ -748,6 +748,13 @@ body.platform-win {
 #minimap-wrapper.visible {
 	opacity: 1;
 	pointer-events: auto;
+	transition: opacity 0ms;
+}
+
+#minimap-wrapper.visible.idle {
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 600ms ease;
 }
 
 #minimap-canvas {
