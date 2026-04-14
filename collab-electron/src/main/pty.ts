@@ -1033,24 +1033,16 @@ export async function captureSession(
   const backend = sessionBackend(sessionId);
 
   if (backend === "sidecar") {
-    try {
-      const client = getSidecarClient();
-      return await client.captureSession(sessionId, lines);
-    } catch {
-      return "";
-    }
+    const client = getSidecarClient();
+    return await client.captureSession(sessionId, lines);
   }
 
   const name = tmuxSessionName(sessionId);
-  try {
-    const raw = tmuxExec(
-      "capture-pane", "-t", name,
-      "-p", "-S", `-${lines}`,
-    );
-    return stripTrailingBlanks(raw);
-  } catch {
-    return "";
-  }
+  const raw = tmuxExec(
+    "capture-pane", "-t", name,
+    "-p", "-S", `-${lines}`,
+  );
+  return stripTrailingBlanks(raw);
 }
 
 export async function getForegroundProcess(

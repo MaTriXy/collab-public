@@ -89,6 +89,10 @@ export default defineConfig({
             "src/windows/graph-tile/index.html",
           ),
           "tile-list": resolve(__dirname, "src/windows/tile-list/index.html"),
+          "agent-chat": resolve(
+            __dirname,
+            "src/windows/agent-chat/index.html",
+          ),
         },
       },
     },
