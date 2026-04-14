@@ -241,6 +241,7 @@ const IS_MAC = window.api.getPlatform() === "darwin";
 const MOD = IS_MAC ? "\u2318" : "Ctrl+";
 const SHIFT = IS_MAC ? "\u21E7" : "Shift+";
 const CTRL = IS_MAC ? "\u2303" : "Ctrl+";
+const ALT = IS_MAC ? "\u2325" : "Alt+";
 
 const SHORTCUTS: { label: string; keys: string }[] = [
   { label: "Settings", keys: `${MOD} ,` },
@@ -255,6 +256,10 @@ const SHORTCUTS: { label: string; keys: string }[] = [
     label: "Toggle Full Screen",
     keys: IS_MAC ? "\u2303 \u2318 F" : "F11",
   },
+  { label: "Focus Tile Left", keys: `${ALT} ←` },
+  { label: "Focus Tile Right", keys: `${ALT} →` },
+  { label: "Focus Tile Up", keys: `${ALT} ↑` },
+  { label: "Focus Tile Down", keys: `${ALT} ↓` },
 ];
 
 const MOUSE_INPUTS: { label: string; keys: string }[] = [

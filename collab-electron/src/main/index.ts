@@ -178,6 +178,8 @@ const altCmdOrCtrl = (input: Electron.Input): boolean =>
   input.alt && (input.meta || input.control);
 const ctrlOnly = (input: Electron.Input): boolean =>
   input.control && !input.meta;
+const altOnly = (input: Electron.Input): boolean =>
+  input.alt && !input.meta && !input.control && !input.shift;
 
 interface ShortcutEntry {
   modifier: (input: Electron.Input) => boolean;
@@ -195,6 +197,10 @@ const TOGGLE_SHORTCUTS: Record<string, ShortcutEntry[]> = {
   KeyK: [{ modifier: cmdOrCtrl, action: "focus-file-search" }],
   KeyN: [{ modifier: cmdOrCtrl, action: "new-tile" }],
   KeyW: [{ modifier: cmdOrCtrl, action: "close-tile" }],
+  ArrowRight: [{ modifier: altOnly, action: "focus-tile-right" }],
+  ArrowLeft: [{ modifier: altOnly, action: "focus-tile-left" }],
+  ArrowUp: [{ modifier: altOnly, action: "focus-tile-up" }],
+  ArrowDown: [{ modifier: altOnly, action: "focus-tile-down" }],
 };
 
 const TOGGLE_SHORTCUT_KEYS: Record<string, ShortcutEntry[]> = {

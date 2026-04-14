@@ -2,7 +2,7 @@ import "./shell.css";
 import "./tooltip.js";
 import {
 	tiles, getTile, defaultSize, inferTileType, tileAtPoint,
-	selectTile, clearSelection, getSelectedTiles,
+	selectTile, clearSelection, getSelectedTiles, getNearestTileInDirection,
 } from "./canvas-state.js";
 import { attachMarquee } from "./tile-interactions.js";
 import { initDarkMode, applyCanvasOpacity } from "./dark-mode.js";
@@ -1104,6 +1104,25 @@ async function init() {
 				canvasEl.focus();
 				noteSurfaceFocus("canvas");
 				minimap.update();
+			}
+		} else if (
+			action === "focus-tile-right" || action === "focus-tile-left" ||
+			action === "focus-tile-up" || action === "focus-tile-down"
+		) {
+			const direction = action.replace("focus-tile-", "");
+			const currentId = tileManager.getFocusedTileId();
+			let target;
+			if (!currentId) {
+				const rect = canvasEl.getBoundingClientRect();
+				const cx = (rect.width / 2 - viewportState.panX) / viewportState.zoom;
+				const cy = (rect.height / 2 - viewportState.panY) / viewportState.zoom;
+				target = getNearestTileInDirection(null, direction, cx, cy);
+			} else {
+				target = getNearestTileInDirection(currentId, direction);
+			}
+			if (target) {
+				tileManager.focusCanvasTile(target.id, null);
+				edgeIndicators.panToTile(target);
 			}
 		}
 	}
