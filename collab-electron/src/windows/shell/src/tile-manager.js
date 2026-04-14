@@ -596,8 +596,8 @@ export function createTileManager({
 		saveCanvasImmediate();
 	}
 
-	function createFileTile(type, cx, cy, filePath) {
-		const tile = createCanvasTile(type, cx, cy, { filePath });
+	function createFileTile(type, cx, cy, filePath, extra = {}) {
+		const tile = createCanvasTile(type, cx, cy, { ...extra, filePath });
 		const dom = tileDOMs.get(tile.id);
 		if (!dom) return tile;
 
@@ -719,7 +719,12 @@ export function createTileManager({
 				spawnBrowserWebview(tile);
 			} else if (saved.filePath) {
 				createFileTile(
-					saved.type, cx, cy, saved.filePath,
+					saved.type, cx, cy, saved.filePath, {
+						id: saved.id,
+						width: saved.width,
+						height: saved.height,
+						zIndex: saved.zIndex,
+					},
 				);
 			}
 		}

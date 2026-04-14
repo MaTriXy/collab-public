@@ -212,7 +212,10 @@ body.platform-win {
 
 #panel-agent webview {
 	flex: 1;
-	padding: 18px 4px 0 18px;
+}
+
+#panel-agent webview.agent-terminal {
+	padding: 12px 6px 12px 12px;
 }
 
 #grid-canvas {
