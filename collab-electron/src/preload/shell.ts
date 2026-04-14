@@ -13,11 +13,12 @@ interface AllViewConfigs {
   graphTile: ViewConfig;
   settings: ViewConfig;
   tileList: ViewConfig;
+  agentChat: ViewConfig;
 }
 
 const ALLOWED_PANELS = new Set([
   "nav", "viewer", "terminal", "terminalTile",
-  "graphTile", "settings", "tile-list",
+  "graphTile", "settings", "tile-list", "agent-chat",
 ]);
 
 // Buffer loading-done signal so it isn't lost if it arrives before
@@ -264,4 +265,110 @@ contextBridge.exposeInMainWorld("shellApi", {
   },
 
   ptyDiscover: () => ipcRenderer.invoke("pty:discover"),
+
+  browserNavigate: (
+    webContentsId: number, url: string,
+  ): Promise<{ url: string }> =>
+    ipcRenderer.invoke("browser:navigate", { webContentsId, url }),
+
+  browserScreenshot: (
+    webContentsId: number,
+  ): Promise<{ data: string }> =>
+    ipcRenderer.invoke("browser:screenshot", { webContentsId }),
+
+  browserSnapshot: (
+    webContentsId: number,
+  ): Promise<unknown> =>
+    ipcRenderer.invoke("browser:snapshot", { webContentsId }),
+
+  browserClick: (
+    webContentsId: number, selector: string,
+  ): Promise<void> =>
+    ipcRenderer.invoke("browser:click", { webContentsId, selector }),
+
+  browserType: (
+    webContentsId: number, selector: string, text: string,
+  ): Promise<void> =>
+    ipcRenderer.invoke("browser:type", { webContentsId, selector, text }),
+
+  // -- ACP agent forwarding --
+  onAgentUpdate: (cb: (params: unknown) => void) => {
+    const handler = (_event: unknown, params: unknown) =>
+      cb(params);
+    ipcRenderer.on("agent:update", handler);
+    return () =>
+      ipcRenderer.removeListener("agent:update", handler);
+  },
+  onAgentPromptComplete: (
+    cb: (data: unknown) => void,
+  ) => {
+    const handler = (_event: unknown, data: unknown) =>
+      cb(data);
+    ipcRenderer.on("agent:prompt-complete", handler);
+    return () =>
+      ipcRenderer.removeListener(
+        "agent:prompt-complete", handler,
+      );
+  },
+  onAgentPromptError: (cb: (data: unknown) => void) => {
+    const handler = (_event: unknown, data: unknown) =>
+      cb(data);
+    ipcRenderer.on("agent:prompt-error", handler);
+    return () =>
+      ipcRenderer.removeListener(
+        "agent:prompt-error", handler,
+      );
+  },
+  onAgentExit: (cb: (data: unknown) => void) => {
+    const handler = (_event: unknown, data: unknown) =>
+      cb(data);
+    ipcRenderer.on("agent:exit", handler);
+    return () =>
+      ipcRenderer.removeListener("agent:exit", handler);
+  },
+  onAgentSessionReady: (cb: (data: unknown) => void) => {
+    const handler = (_event: unknown, data: unknown) =>
+      cb(data);
+    ipcRenderer.on("agent:session-ready", handler);
+    return () =>
+      ipcRenderer.removeListener(
+        "agent:session-ready", handler,
+      );
+  },
+  onAgentSessionFailed: (cb: (data: unknown) => void) => {
+    const handler = (_event: unknown, data: unknown) =>
+      cb(data);
+    ipcRenderer.on("agent:session-failed", handler);
+    return () =>
+      ipcRenderer.removeListener(
+        "agent:session-failed", handler,
+      );
+  },
+
+  browserScroll: (
+    webContentsId: number, x: number, y: number,
+  ): Promise<void> =>
+    ipcRenderer.invoke("browser:scroll", { webContentsId, x, y }),
+
+  browserEvaluate: (
+    webContentsId: number, expression: string,
+  ): Promise<{ value: unknown }> =>
+    ipcRenderer.invoke(
+      "browser:evaluate", { webContentsId, expression },
+    ),
+
+  browserWait: (
+    webContentsId: number, timeout?: number,
+  ): Promise<{ status: string }> =>
+    ipcRenderer.invoke(
+      "browser:wait", { webContentsId, timeout },
+    ),
+
+  browserInfo: (
+    webContentsId: number,
+  ): Promise<{
+    url: string; title: string; loading: boolean;
+    canGoBack: boolean; canGoForward: boolean;
+  }> =>
+    ipcRenderer.invoke("browser:info", { webContentsId }),
 });
