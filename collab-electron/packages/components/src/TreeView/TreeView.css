@@ -269,6 +269,62 @@
 	color: var(--accent-foreground);
 }
 
+/* View toggle (tree / feed) */
+.nav-view-toggle {
+	display: flex;
+	align-items: center;
+	gap: 0;
+	padding: 0;
+	flex-shrink: 0;
+	width: 44px;
+	overflow: hidden;
+	opacity: 1;
+	transition: width 0.2s ease, opacity 0.15s ease;
+}
+
+.nav-view-toggle.hidden {
+	width: 0;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.nav-view-toggle-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 20px;
+	background: transparent;
+	border: none;
+	border-radius: 4px;
+	color: var(--muted-foreground);
+	cursor: pointer;
+	transition: color 0.15s, background-color 0.15s;
+	opacity: 0.5;
+}
+
+.nav-view-toggle-button:hover {
+	color: var(--foreground);
+	opacity: 0.8;
+}
+
+.nav-view-toggle-button.active {
+	color: var(--foreground);
+	opacity: 1;
+	cursor: default;
+}
+
+/* List view date separators */
+.list-date-separator {
+	font-family: var(--font-mono);
+	font-size: 0.7rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: color-mix(in srgb, var(--muted-foreground) 60%, transparent);
+	padding: 10px 8px 4px;
+}
+
 /* Collection tree view */
 
 .collection-tree-row {
