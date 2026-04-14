@@ -314,8 +314,8 @@
 	cursor: default;
 }
 
-/* Feed date separators */
-.feed-date-separator {
+/* List view date separators */
+.list-date-separator {
 	font-family: var(--font-mono);
 	font-size: 0.7rem;
 	font-weight: 600;

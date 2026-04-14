@@ -4,6 +4,7 @@ import React, {
 	useEffect,
 	useImperativeHandle,
 	useMemo,
+	useRef,
 	useState,
 } from 'react';
 import type { TreeNode } from '@collab/shared/types';
@@ -65,7 +66,7 @@ export interface WorkspaceTreeProps {
 	onSelectFolder?: (path: string) => void;
 	isFirstWorkspace?: boolean;
 	searchQuery?: string;
-	flatView?: boolean;
+	listView?: boolean;
 	initialExpandAll?: boolean;
 	onExpandAllComplete?: (wsPath: string) => void;
 }
@@ -130,7 +131,7 @@ export const WorkspaceTree = forwardRef<
 		onSelectFolder,
 		isFirstWorkspace = false,
 		searchQuery,
-		flatView = false,
+		listView = false,
 		initialExpandAll = false,
 		onExpandAllComplete,
 	},
@@ -164,12 +165,15 @@ export const WorkspaceTree = forwardRef<
 	>(null);
 	const isSearching =
 		(searchQuery ?? '').trim().length > 0;
-	const needsAllFiles = isSearching || flatView;
+	const needsAllFiles = isSearching || listView;
+	const fetchVersion = useRef(0);
+	const [fetchTrigger, setFetchTrigger] = useState(0);
 
-	// Invalidate allFiles cache when FS changes are detected
+	// Trigger re-fetch (without nulling allFiles) when FS changes
 	useEffect(() => {
 		if (needsAllFiles) {
-			setAllFiles(null);
+			fetchVersion.current += 1;
+			setFetchTrigger(fetchVersion.current);
 		}
 	// eslint-disable-next-line react-hooks/exhaustive-deps -- flatItems ref changes on any FS update
 	}, [flatItems]);
@@ -179,7 +183,6 @@ export const WorkspaceTree = forwardRef<
 			setAllFiles(null);
 			return;
 		}
-		if (allFiles) return;
 		let cancelled = false;
 		window.api
 			.readTree({ root: workspace.path })
@@ -195,14 +198,16 @@ export const WorkspaceTree = forwardRef<
 		return () => {
 			cancelled = true;
 		};
-		// eslint-disable-next-line react-hooks/exhaustive-deps -- allFiles tracked by needsAllFiles
-	}, [needsAllFiles, workspace.path, allFiles]);
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- fetchTrigger drives re-fetch on FS changes
+	}, [needsAllFiles, workspace.path, fetchTrigger]);
 
 	const filteredItems = useMemo(() => {
-		if (!searchQuery?.trim() && !flatView) return flatItems;
+		if (!searchQuery?.trim() && !listView) return flatItems;
+		// While allFiles is loading, keep showing the tree view
+		if (listView && !allFiles && !searchQuery?.trim()) return flatItems;
 		const source = allFiles ?? flatItems;
 		let items: FlatItem[];
-		if (flatView && !searchQuery?.trim()) {
+		if (listView && !searchQuery?.trim()) {
 			items = source.filter((item) => item.kind !== 'folder');
 		} else {
 			const query = searchQuery!.toLowerCase();
@@ -243,14 +248,14 @@ export const WorkspaceTree = forwardRef<
 			}
 		};
 		return items.sort(cmp);
-	}, [flatItems, allFiles, searchQuery, flatView, sortMode]);
+	}, [flatItems, allFiles, searchQuery, listView, sortMode]);
 
 	useImperativeHandle(
 		ref,
 		() => ({
 			flatItems,
 			navigableItems:
-				(isSearching || flatView) ? filteredItems : navigableItems,
+				(isSearching || listView) ? filteredItems : navigableItems,
 			expandAncestors,
 			expandRecursive,
 			collapseAllDirs,
@@ -259,7 +264,7 @@ export const WorkspaceTree = forwardRef<
 			flatItems,
 			navigableItems,
 			isSearching,
-			flatView,
+			listView,
 			filteredItems,
 			expandAncestors,
 			expandRecursive,
@@ -269,7 +274,7 @@ export const WorkspaceTree = forwardRef<
 
 	// Group flat items by date or alphabetical initial
 	const groupedFlatItems = useMemo(() => {
-		if (!flatView || isSearching) return null;
+		if (!listView || isSearching || !allFiles) return null;
 		const groups: { key: string; label: string; items: FlatItem[] }[] = [];
 		const map = new Map<string, { key: string; label: string; items: FlatItem[] }>();
 
@@ -303,7 +308,7 @@ export const WorkspaceTree = forwardRef<
 		}
 
 		return groups;
-	}, [flatView, isSearching, filteredItems, sortMode]);
+	}, [listView, isSearching, filteredItems, sortMode]);
 
 	const workspaceItem: FlatItem = useMemo(
 		() => ({
@@ -354,7 +359,7 @@ export const WorkspaceTree = forwardRef<
 			{(isExpanded || (isSearching && filteredItems.length > 0)) && groupedFlatItems ? (
 				groupedFlatItems.map((group) => (
 					<div key={group.key}>
-						<div className="feed-date-separator">
+						<div className="list-date-separator">
 							{group.label}
 						</div>
 						<TreeView
@@ -419,7 +424,7 @@ export const WorkspaceTree = forwardRef<
 					searchQuery={searchQuery}
 				/>
 			) : null}
-			{(isExpanded || isSearching || flatView) &&
+			{(isExpanded || isSearching) &&
 				filteredItems.length === 0 && (
 					<div className="search-no-matches">
 						No matching files

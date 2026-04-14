@@ -183,14 +183,14 @@ export default function App() {
 		folderPath: string;
 	} | null>(null);
 	const [searchQuery, setSearchQuery] = useState('');
-	const [flatView, setFlatView] = useState(() => {
-		const stored = localStorage.getItem('nav_flat_view');
+	const [listView, setListView] = useState(() => {
+		const stored = localStorage.getItem('nav_list_view');
 		return stored === 'true';
 	});
-	const toggleFlatView = useCallback(() => {
-		setFlatView((prev) => {
+	const toggleListView = useCallback(() => {
+		setListView((prev) => {
 			const next = !prev;
-			localStorage.setItem('nav_flat_view', String(next));
+			localStorage.setItem('nav_list_view', String(next));
 			return next;
 		});
 	}, []);
@@ -1352,11 +1352,11 @@ export default function App() {
 								onArrowNav={
 									navigateItems
 								}
-								flatView={
-									flatView
+								listView={
+									listView
 								}
-								onToggleFlatView={
-									toggleFlatView
+								onToggleListView={
+									toggleListView
 								}
 							/>
 							<div className="workspace-add-row">
@@ -1487,8 +1487,8 @@ export default function App() {
 												searchQuery={
 													searchQuery
 												}
-												flatView={
-													flatView
+												listView={
+													listView
 												}
 												initialExpandAll={pendingExpandAll.has(
 													ws.path,
