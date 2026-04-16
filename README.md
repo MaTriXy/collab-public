@@ -241,16 +241,6 @@ Canvas state is saved 500ms after each change (debounced) and immediately when t
 }
 ```
 
-## Star History
-
-<a href="https://www.star-history.com/?repos=collaborator-ai%2Fcollab-public&type=timeline&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=collaborator-ai/collab-public&type=timeline&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=collaborator-ai/collab-public&type=timeline&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=collaborator-ai/collab-public&type=timeline&legend=top-left" />
- </picture>
-</a>
-
 ## Development | Electron App
 
 ### Prerequisites
@@ -258,12 +248,15 @@ Canvas state is saved 500ms after each change (debounced) and immediately when t
 Install:
 
 * Node.js 22+
+
 * Bun
 
 Platform notes:
 
 * macOS: Homebrew is the simplest way to install Node.js and Bun.
+
 * Windows: PowerShell 7 is recommended; WSL2 support requires at least one installed distro.
+
 * Linux: install Node.js and Bun from your distro packages or upstream installers.
 
 ### Setup
